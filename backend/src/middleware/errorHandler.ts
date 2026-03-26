@@ -7,19 +7,43 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): Response => {
+  // Always log in development
   if (process.env.NODE_ENV !== 'production') {
-    console.error(err);
+    console.error('[ErrorHandler]', err);
+  }
+
+  if (
+    err instanceof Error &&
+    'statusCode' in err &&
+    typeof err.statusCode === 'number'
+  ) {
+    return res.status(err.statusCode).json({
+      error: err.message,
+      code: 'AUTH_ERROR',
+    });
   }
 
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: 'Validation failed',
-      code: 'VALIDATION_ERROR'
+      code: 'VALIDATION_ERROR',
+      // Show field-level errors in dev
+      ...(process.env.NODE_ENV !== 'production' && {
+        details: err.errors.map(e => ({
+          field: e.path.join('.'),
+          message: e.message,
+        })),
+      }),
     });
   }
 
+  // Show error message in dev
+  const message = process.env.NODE_ENV !== 'production' && err instanceof Error
+    ? err.message
+    : 'Internal Server Error';
+
   return res.status(500).json({
-    error: 'Internal Server Error',
-    code: 'INTERNAL_SERVER_ERROR'
+    error: message,
+    code: 'INTERNAL_SERVER_ERROR',
   });
 };

@@ -10,7 +10,28 @@ type SessionResult = {
 };
 
 export const createSession = async (idToken: string): Promise<SessionResult> => {
-	const decodedToken = await admin.auth().verifyIdToken(idToken);
+	let decodedToken: Awaited<ReturnType<ReturnType<typeof admin.auth>['verifyIdToken']>>;
+
+	try {
+		decodedToken = await admin.auth().verifyIdToken(idToken);
+	} catch (error: unknown) {
+		if (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			typeof error.code === 'string' &&
+			error.code.startsWith('auth/')
+		) {
+			const authError = new Error('Invalid or expired token') as Error & {
+				statusCode: number;
+			};
+			authError.statusCode = 401;
+			throw authError;
+		}
+
+		throw error;
+	}
+
 	const firebaseUid = decodedToken.uid;
 	const email = decodedToken.email;
 	const displayName = decodedToken.name ?? null;
