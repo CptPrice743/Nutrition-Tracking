@@ -37,3 +37,8 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+test-export.zip
+cookies.txt
+test-export/daily_logs.csv
+test-export/habit_logs.csv
+test-import-bad.csv
