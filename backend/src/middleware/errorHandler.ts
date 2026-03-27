@@ -9,7 +9,14 @@ export const errorHandler = (
 ): Response => {
   // Always log in development
   if (process.env.NODE_ENV !== 'production') {
-    console.error('[ErrorHandler]', err);
+    if (err instanceof Error) {
+      console.error(`[ErrorHandler] ${err.name}: ${err.message}`);
+      if (err.stack) {
+        console.error(err.stack);
+      }
+    } else {
+      console.error('[ErrorHandler] Non-Error thrown');
+    }
   }
 
   if (
