@@ -1,7 +1,26 @@
 import type { ReactNode } from 'react';
 
-const Card = ({ children, className = '' }: { children: ReactNode; className?: string }): JSX.Element => {
-  return <div className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm ${className}`}>{children}</div>;
+import { cn } from '../../lib/utils';
+
+type CardProps = {
+  title?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+  children: ReactNode;
+};
+
+const Card = ({ title, action, className, children }: CardProps): JSX.Element => {
+  return (
+    <section className={cn('rounded-2xl border border-gray-100 bg-white p-5 shadow-sm', className)}>
+      {title || action ? (
+        <header className="mb-4 flex items-center justify-between gap-3">
+          {title ? <h3 className="text-base font-semibold text-slate-900">{title}</h3> : <span />}
+          {action ? <div>{action}</div> : null}
+        </header>
+      ) : null}
+      <div>{children}</div>
+    </section>
+  );
 };
 
 export default Card;

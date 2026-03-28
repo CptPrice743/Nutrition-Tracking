@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 
 import { logsApi } from '../lib/api';
 import type { CreateDailyLogInput, UpdateDailyLogInput } from '../types';
@@ -13,7 +14,17 @@ export const useLogs = (params?: { startDate?: string; endDate?: string }) => {
 export const useLogByDate = (date: string) => {
   return useQuery({
     queryKey: ['log', date],
-    queryFn: async () => (await logsApi.getByDate(date)).data,
+    queryFn: async () => {
+      try {
+        return (await logsApi.getByDate(date)).data;
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
     enabled: date.length > 0
   });
 };

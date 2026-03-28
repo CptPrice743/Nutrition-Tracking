@@ -83,7 +83,9 @@ api.interceptors.response.use(
       cleanupWakeup(config);
     }
 
-    if (error.response?.status === 401 && window.location.pathname !== '/login') {
+    const status = error.response?.status;
+
+    if (status === 401 && window.location.pathname !== '/login') {
       window.location.assign('/login');
     }
 

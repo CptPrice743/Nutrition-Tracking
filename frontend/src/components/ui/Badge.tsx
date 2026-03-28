@@ -1,7 +1,25 @@
 import type { ReactNode } from 'react';
 
-const Badge = ({ children }: { children: ReactNode }): JSX.Element => {
-  return <span className="rounded-full bg-accent-100 px-2 py-1 text-xs font-medium text-accent-700">{children}</span>;
+import { cn } from '../../lib/utils';
+
+type BadgeProps = {
+  variant?: 'success' | 'warning' | 'danger' | 'neutral';
+  children: ReactNode;
+};
+
+const variantClasses: Record<NonNullable<BadgeProps['variant']>, string> = {
+  success: 'bg-green-50 text-success',
+  warning: 'bg-amber-50 text-warning',
+  danger: 'bg-red-50 text-danger',
+  neutral: 'bg-slate-100 text-slate-700'
+};
+
+const Badge = ({ variant = 'neutral', children }: BadgeProps): JSX.Element => {
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold', variantClasses[variant])}>
+      {children}
+    </span>
+  );
 };
 
 export default Badge;

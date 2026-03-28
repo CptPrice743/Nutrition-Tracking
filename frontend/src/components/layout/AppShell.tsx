@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import Spinner from '../ui/Spinner';
@@ -8,6 +8,28 @@ import Sidebar from './Sidebar';
 
 const AppShell = (): JSX.Element => {
   const { user, loading } = useAuth();
+  const location = useLocation();
+
+  const getCurrentPageTitle = (pathname: string): string => {
+    if (pathname === '/') {
+      return 'Home';
+    }
+    if (pathname.startsWith('/daily-log')) {
+      return 'Daily Log';
+    }
+    if (pathname.startsWith('/analytics')) {
+      return 'Analytics';
+    }
+    if (pathname.startsWith('/habits')) {
+      return 'Habits';
+    }
+    if (pathname.startsWith('/settings')) {
+      return 'Settings';
+    }
+    return 'NutriLog';
+  };
+
+  const currentPageTitle = getCurrentPageTitle(location.pathname);
 
   if (loading) {
     return (
@@ -22,20 +44,32 @@ const AppShell = (): JSX.Element => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl">
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar — desktop only */}
+      <div className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:w-[240px] md:flex-col">
         <Sidebar />
-        <main className="flex-1 p-4 pb-20 md:p-8 md:pb-8">
-          <header className="mb-6 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Welcome{user?.displayName ? `, ${user.displayName}` : ''}</h2>
-          </header>
+      </div>
+
+      {/* Main content */}
+      <main className="min-h-screen pb-16 md:ml-[240px] md:pb-0">
+        <header className="border-b border-gray-100 bg-white md:hidden">
+          <div className="px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">NutriLog</p>
+            <h1 className="mt-0.5 text-lg font-semibold text-gray-900">{currentPageTitle}</h1>
+          </div>
+        </header>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="mb-4">
             <ServerWakeupBanner />
           </div>
           <Outlet />
-        </main>
+        </div>
+      </main>
+
+      {/* Bottom nav — mobile only */}
+      <div className="md:hidden">
+        <BottomNav />
       </div>
-      <BottomNav />
     </div>
   );
 };
