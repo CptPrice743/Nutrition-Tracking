@@ -16,11 +16,7 @@ const app = express();
 
 app.use(
   helmet({
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    }
+    crossOriginOpenerPolicy: false
   })
 );
 
