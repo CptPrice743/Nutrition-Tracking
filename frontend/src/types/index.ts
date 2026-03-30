@@ -166,6 +166,7 @@ export type CsvImportPreview = {
   detectedColumns: string[];
   previewRows: Record<string, string>[];
   suggestedMappings: Record<string, string | null>;
+  formatValid: boolean;
 };
 
 export type CsvImportConflict = {

@@ -14,6 +14,7 @@ type PreviewResult = {
 	detectedColumns: string[];
 	previewRows: ParsedCsvRow[];
 	suggestedMappings: Record<string, string | null>;
+	formatValid: boolean;
 };
 
 type ConfirmInput = {
@@ -295,7 +296,28 @@ export const exportUserData = async (userId: string): Promise<Buffer> => {
 
 export const previewCsvImport = async (csvBuffer: Buffer): Promise<PreviewResult> => {
 	const csvText = csvBuffer.toString('utf-8');
-	const rows = await parseCsvRecords(csvText);
+	let rows: ParsedCsvRow[];
+
+	try {
+		const parsed = parse(csvText, {
+			columns: true,
+			skip_empty_lines: true,
+			trim: true,
+			relax_column_count: true
+		}) as unknown;
+
+		if (!Array.isArray(parsed)) {
+			throw new Error('Parsed CSV is not an array');
+		}
+
+		rows = parsed as ParsedCsvRow[];
+	} catch {
+		throw new ImportExportServiceError(
+			'This file could not be read. Please make sure it is a valid CSV file.',
+			400,
+			'INVALID_FILE'
+		);
+	}
 
 	const detectedColumns = rows.length > 0 ? Object.keys(rows[0]) : [];
 
@@ -310,10 +332,31 @@ export const previewCsvImport = async (csvBuffer: Buffer): Promise<PreviewResult
 		suggestedMappings[column] = lowerFieldNameMap.get(normalizedColumn) ?? null;
 	}
 
+	const requiredColumns = new Set([
+		'date',
+		'weight_kg',
+		'calories_consumed',
+		'protein_g',
+		'carbs_g',
+		'water_litres',
+		'day_type'
+	]);
+
+	const matchedRequiredColumns = new Set<string>();
+	for (const column of detectedColumns) {
+		const normalizedColumn = normalizeKey(column);
+		if (requiredColumns.has(normalizedColumn)) {
+			matchedRequiredColumns.add(normalizedColumn);
+		}
+	}
+
+	const formatValid = matchedRequiredColumns.size >= 3;
+
 	return {
 		detectedColumns,
 		previewRows: rows.slice(0, 5),
-		suggestedMappings
+		suggestedMappings,
+		formatValid
 	};
 };
 

@@ -98,6 +98,10 @@ export const authApi = {
   deleteSession: () => api.delete<{ message: string }>('/auth/session')
 };
 
+export const usersApi = {
+  updateMe: (displayName: string) => api.put<{ user: AuthUser }>('/users/me', { displayName })
+};
+
 export const logsApi = {
   getByDate: (date: string) => api.get<DailyLog>(`/logs/${date}`),
   list: (params?: { startDate?: string; endDate?: string }) =>

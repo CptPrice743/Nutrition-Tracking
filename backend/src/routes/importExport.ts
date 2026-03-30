@@ -3,6 +3,7 @@ import multer from 'multer';
 
 import {
 	confirmCsvImportController,
+	downloadImportTemplate,
 	exportUserDataController,
 	previewCsvImportController
 } from '../controllers/importExport';
@@ -25,6 +26,7 @@ const upload = multer({
 router.use(requireAuth);
 
 router.get('/export', exportUserDataController);
+router.get('/import/template', requireAuth, downloadImportTemplate);
 router.post('/import/csv', upload.single('file'), previewCsvImportController);
 router.post('/import/csv/confirm', confirmCsvImportController);
 

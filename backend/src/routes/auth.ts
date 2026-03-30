@@ -1,10 +1,16 @@
 import { Router } from 'express';
 
-import { createSessionController, deleteSessionController } from '../controllers/auth';
+import {
+	createSessionController,
+	deleteSessionController,
+	updateMeController
+} from '../controllers/auth';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-router.post('/session', createSessionController);
-router.delete('/session', deleteSessionController);
+router.post('/auth/session', createSessionController);
+router.delete('/auth/session', deleteSessionController);
+router.put('/users/me', requireAuth, updateMeController);
 
 export default router;
