@@ -91,6 +91,21 @@ export type UpsertHabitLogInput = {
   notes?: string;
 };
 
+export type HabitDailyValue = {
+  date: string;
+  value: number | null;
+};
+
+export type HabitWeeklySummary = {
+  habitId: string;
+  habitName: string;
+  habitType: 'count' | 'boolean';
+  targetValue: number | null;
+  targetDirection: 'at_least' | 'at_most' | null;
+  dailyValues: HabitDailyValue[];
+  totalCaloriesBurned: number;
+};
+
 export type WeeklyAnalytics = {
   weekLabel: string;
   startDate: string;
@@ -128,15 +143,7 @@ export type WeeklyAnalytics = {
     fatTotalG: number | null;
     waterLitres: number | null;
   }[];
-  habitSummaries: {
-    habitId: string;
-    habitName: string;
-    habitType: 'count' | 'boolean';
-    targetValue: number | null;
-    targetDirection: 'at_least' | 'at_most' | null;
-    dailyValues: { date: string; value: number | null }[];
-    totalCaloriesBurned: number;
-  }[];
+  habitSummaries: HabitWeeklySummary[];
 };
 
 export type DashboardWidgetLayout = {

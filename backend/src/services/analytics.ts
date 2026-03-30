@@ -205,13 +205,18 @@ const calculateWeekCoreMetrics = (dailyLogs: DailyLog[], habitLogs: HabitLog[]):
 };
 
 const getWeekData = async (userId: string, start: Date, end: Date) => {
+	const startDate = toDateOnlyString(start);
+	const endDate = toDateOnlyString(end);
+	const rangeStart = new Date(`${startDate}T00:00:00.000Z`);
+	const rangeEnd = new Date(`${endDate}T23:59:59.999Z`);
+
 	const [dailyLogs, habitLogs] = await Promise.all([
 		prisma.dailyLog.findMany({
 			where: {
 				userId,
 				date: {
-					gte: start,
-					lte: end
+					gte: rangeStart,
+					lte: rangeEnd
 				}
 			},
 			orderBy: { date: 'asc' }
@@ -220,8 +225,8 @@ const getWeekData = async (userId: string, start: Date, end: Date) => {
 			where: {
 				userId,
 				logDate: {
-					gte: start,
-					lte: end
+					gte: rangeStart,
+					lte: rangeEnd
 				}
 			},
 			orderBy: { logDate: 'asc' }

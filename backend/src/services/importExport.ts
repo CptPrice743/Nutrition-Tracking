@@ -360,49 +360,60 @@ export const confirmCsvImport = async (userId: string, input: ConfirmInput): Pro
 	const conflicts: ConflictRow[] = validRows
 		.filter((row) => existingDates.has(row.data.date))
 		.map((row) => ({ row: row.row, date: row.data.date, action: resolution }));
-	let imported = 0;
+	const rowsToInsert: Array<{ date: string; data: Omit<z.infer<typeof dailyLogCreateSchema>, 'date'> }> = [];
+	const rowsToUpdate: Array<{ date: string; data: Omit<z.infer<typeof dailyLogCreateSchema>, 'date'> }> = [];
 	let skipped = 0;
 
-	await prisma.$transaction(async (tx) => {
-		for (const row of validRows) {
-			const isConflict = existingDates.has(row.data.date);
-			if (isConflict && resolution === 'skip') {
-				skipped += 1;
-				continue;
+	for (const row of validRows) {
+		const isConflict = existingDates.has(row.data.date);
+		const { date, ...rest } = row.data;
+
+		if (isConflict && resolution === 'skip') {
+			skipped += 1;
+			continue;
+		}
+
+		if (isConflict && resolution === 'overwrite') {
+			rowsToUpdate.push({ date, data: rest });
+			continue;
+		}
+
+		rowsToInsert.push({ date, data: rest });
+	}
+
+	const imported = rowsToInsert.length + rowsToUpdate.length;
+
+	await prisma.$transaction(
+		async (tx) => {
+			for (const row of rowsToInsert) {
+				await tx.dailyLog.create({
+					data: {
+						userId,
+						date: new Date(`${row.date}T00:00:00.000Z`),
+						...row.data
+					}
+				});
 			}
 
-			const { date, ...rest } = row.data;
-			if (isConflict && resolution === 'overwrite') {
-				await tx.dailyLog.upsert({
+			for (const row of rowsToUpdate) {
+				await tx.dailyLog.update({
 					where: {
 						userId_date: {
 							userId,
-							date: new Date(`${date}T00:00:00.000Z`)
+							date: new Date(`${row.date}T00:00:00.000Z`)
 						}
 					},
-					update: {
-						...rest
-					},
-					create: {
-						userId,
-						date: new Date(`${date}T00:00:00.000Z`),
-						...rest
+					data: {
+						...row.data
 					}
 				});
-				imported += 1;
-				continue;
 			}
-
-			await tx.dailyLog.create({
-				data: {
-					userId,
-					date: new Date(`${date}T00:00:00.000Z`),
-					...rest
-				}
-			});
-			imported += 1;
+		},
+		{
+			maxWait: 10000,
+			timeout: 30000
 		}
-	});
+	);
 
 	return {
 		imported,

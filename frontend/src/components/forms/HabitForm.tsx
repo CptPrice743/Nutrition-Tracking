@@ -145,11 +145,10 @@ const HabitForm = ({
   const [frequencyX, setFrequencyX] = useState('');
   const [frequencyY, setFrequencyY] = useState('');
   const [targetValue, setTargetValue] = useState('');
-  const [targetDirection, setTargetDirection] = useState<'at_least' | 'at_most' | ''>('');
+  const [targetDirection, setTargetDirection] = useState<'at_least' | 'at_most'>('at_least');
   const [isCalorieBurning, setIsCalorieBurning] = useState(false);
   const [calorieUnit, setCalorieUnit] = useState('');
   const [calorieKcal, setCalorieKcal] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
 
   useEffect(() => {
@@ -172,7 +171,7 @@ const HabitForm = ({
         ? ''
         : String(initialValues.targetValue)
     );
-    setTargetDirection(initialValues?.targetDirection ?? '');
+    setTargetDirection(initialValues?.targetDirection ?? 'at_least');
     setIsCalorieBurning(Boolean(initialValues?.isCalorieBurning));
     setCalorieUnit(
       initialValues?.calorieUnit === undefined || initialValues?.calorieUnit === null
@@ -185,7 +184,6 @@ const HabitForm = ({
         : String(initialValues.calorieKcal)
     );
     setErrors({});
-    setFormError(null);
   }, [initialValues]);
 
   const showFrequencyX =
@@ -225,7 +223,6 @@ const HabitForm = ({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError(null);
     setErrors({});
 
     const parsed = habitFormSchema.safeParse({
@@ -251,9 +248,6 @@ const HabitForm = ({
         }
       }
       setErrors(nextErrors);
-      if (parsed.error.issues.length > 0) {
-        setFormError(parsed.error.issues[0]?.message ?? 'Please correct the highlighted fields.');
-      }
       return;
     }
 
@@ -294,9 +288,7 @@ const HabitForm = ({
 
     try {
       await onSubmit(payload);
-    } catch {
-      setFormError('Unable to save habit right now. Please try again.');
-    }
+    } catch {}
   };
 
   return (
@@ -405,11 +397,10 @@ const HabitForm = ({
           label="Goal direction"
           value={targetDirection}
           options={[
-            { value: '', label: 'Select direction' },
             { value: 'at_least', label: 'At least (minimum)' },
             { value: 'at_most', label: 'At most (maximum)' }
           ]}
-          onChange={(event) => setTargetDirection(event.target.value as 'at_least' | 'at_most' | '')}
+          onChange={(event) => setTargetDirection(event.target.value as 'at_least' | 'at_most')}
           error={errors.targetDirection}
         />
       </div>
@@ -447,8 +438,6 @@ const HabitForm = ({
         {errors.isCalorieBurning ? <p className="text-sm text-danger">{errors.isCalorieBurning}</p> : null}
         <p className="text-xs text-slate-500">{calorieHint}</p>
       </div>
-
-      {formError ? <p className="text-sm text-danger">{formError}</p> : null}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         {onCancel ? (

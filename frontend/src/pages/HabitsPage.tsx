@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  type DraggableProvidedDragHandleProps,
-  type DropResult
-} from '@hello-pangea/dnd';
-
 import HabitForm from '../components/forms/HabitForm';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -20,15 +12,7 @@ import {
   useReorderHabits,
   useUpdateHabit
 } from '../hooks/useHabits';
-import { cn } from '../lib/utils';
 import type { CreateHabitInput, Habit } from '../types';
-
-const reorderList = <T,>(list: T[], startIndex: number, endIndex: number): T[] => {
-  const result = Array.from(list);
-  const [removed] = result.splice(startIndex, 1);
-  result.splice(endIndex, 0, removed);
-  return result;
-};
 
 const formatFrequency = (habit: Habit): string => {
   switch (habit.frequencyType) {
@@ -71,19 +55,23 @@ const HabitCard = ({
   habit,
   onEdit,
   onArchiveToggle,
-  dragHandleProps,
-  dragging
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast
 }: {
   habit: Habit;
   onEdit: (habit: Habit) => void;
   onArchiveToggle: (habitId: string) => Promise<void>;
-  dragHandleProps?: DraggableProvidedDragHandleProps;
-  dragging?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }): JSX.Element => {
   const calorieLabel = formatCalorieBadge(habit);
 
   return (
-    <Card className={cn(dragging ? 'border-accent-300 shadow-md' : undefined)}>
+    <Card>
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -95,17 +83,25 @@ const HabitCard = ({
           <p className="text-sm text-slate-600">{formatTarget(habit)}</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {dragHandleProps ? (
-            <button
-              type="button"
-              aria-label="Drag to reorder"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100"
-              {...dragHandleProps}
-            >
-              ⋮⋮
-            </button>
-          ) : null}
+        <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+          <button
+            type="button"
+            aria-label="Move up"
+            disabled={isFirst}
+            onClick={onMoveUp}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            aria-label="Move down"
+            disabled={isLast}
+            onClick={onMoveDown}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↓
+          </button>
           <Button type="button" variant="secondary" onClick={() => onEdit(habit)}>
             Edit
           </Button>
@@ -224,30 +220,23 @@ const HabitsPage = (): JSX.Element => {
     }
   };
 
-  const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination) {
-      return;
-    }
-
-    if (result.destination.index === result.source.index) {
-      return;
-    }
+  const handleMove = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= localActiveHabits.length) return;
 
     const previousOrder = localActiveHabits;
-    const reorderedHabits = reorderList(
-      localActiveHabits,
-      result.source.index,
-      result.destination.index
-    );
+    const reordered = Array.from(localActiveHabits);
+    const [removed] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, removed);
 
-    setLocalActiveHabits(reorderedHabits);
+    setLocalActiveHabits(reordered);
     setPageError(null);
 
     try {
-      await reorderHabits.mutateAsync(reorderedHabits.map((habit) => habit.id));
+      await reorderHabits.mutateAsync(reordered.map((h) => h.id));
     } catch {
       setLocalActiveHabits(previousOrder);
-      setPageError('Unable to reorder habits right now. Please try again.');
+      setPageError('Unable to reorder habits. Please try again.');
     }
   };
 
@@ -266,49 +255,31 @@ const HabitsPage = (): JSX.Element => {
 
       <Card
         title="Active Habits"
-        action={<span className="text-sm text-slate-500">Drag to reorder</span>}
+        action={<span className="text-sm text-slate-500">Use ↑↓ to reorder</span>}
       >
         {isLoading ? (
           <p className="text-sm text-slate-500">Loading habits...</p>
         ) : localActiveHabits.length === 0 ? (
           <p className="text-sm text-slate-500">No active habits yet.</p>
         ) : (
-          <DragDropContext
-            onDragEnd={(result) => {
-              void handleDragEnd(result);
-            }}
-          >
-            <Droppable droppableId="active-habits">
-              {(provided) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="space-y-3"
-                >
-                  {localActiveHabits.map((habit, index) => (
-                    <Draggable key={habit.id} draggableId={habit.id} index={index}>
-                      {(dragProvided, snapshot) => (
-                        <div
-                          ref={dragProvided.innerRef}
-                          {...dragProvided.draggableProps}
-                          className={cn(snapshot.isDragging ? 'opacity-90' : '')}
-                        >
-                          <HabitCard
-                            habit={habit}
-                            dragging={snapshot.isDragging}
-                            dragHandleProps={dragProvided.dragHandleProps ?? undefined}
-                            onEdit={handleOpenEdit}
-                            onArchiveToggle={handleArchiveToggle}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+          <div className="space-y-3">
+            {localActiveHabits.map((habit, index) => (
+              <HabitCard
+                key={habit.id}
+                habit={habit}
+                isFirst={index === 0}
+                isLast={index === localActiveHabits.length - 1}
+                onMoveUp={() => {
+                  void handleMove(index, 'up');
+                }}
+                onMoveDown={() => {
+                  void handleMove(index, 'down');
+                }}
+                onEdit={handleOpenEdit}
+                onArchiveToggle={handleArchiveToggle}
+              />
+            ))}
+          </div>
         )}
       </Card>
 
@@ -337,6 +308,8 @@ const HabitsPage = (): JSX.Element => {
                 <HabitCard
                   key={habit.id}
                   habit={habit}
+                  isFirst
+                  isLast
                   onEdit={handleOpenEdit}
                   onArchiveToggle={handleArchiveToggle}
                 />
