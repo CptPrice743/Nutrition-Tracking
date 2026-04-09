@@ -1,4 +1,5 @@
-import Card from '../ui/Card';
+import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts';
+
 import Skeleton from '../ui/Skeleton';
 
 export type WaterRingProps = {
@@ -7,59 +8,59 @@ export type WaterRingProps = {
   isLoading?: boolean;
 };
 
-const RING_RADIUS = 32;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
 const WaterRing = ({ litres, target = 3, isLoading = false }: WaterRingProps): JSX.Element => {
   if (isLoading) {
     return (
-      <Card title="Water Intake">
-        <Skeleton className="h-24 w-24 rounded-full" />
-      </Card>
+      <div className="card">
+        <Skeleton className="h-6 w-28 mb-3" />
+        <Skeleton className="h-24 w-full" />
+      </div>
     );
   }
 
-  const numericLitres = litres === null ? null : Math.max(0, Number(litres));
-  const progress = numericLitres === null ? 0 : Math.min(100, (numericLitres / target) * 100);
-  const dashLength = (progress / 100) * RING_CIRCUMFERENCE;
+  const numericLitres = litres === null ? 0 : Math.max(0, Number(litres));
+  const progress = target > 0 ? Math.min(100, (numericLitres / target) * 100) : 0;
+
+  const data = [{ name: 'water', value: progress, fill: '#2563eb' }];
 
   return (
-    <Card title="Water Intake">
-      <div className="flex items-center gap-4">
-        <div className="relative h-24 w-24">
-          <svg viewBox="0 0 84 84" className="h-24 w-24 -rotate-90">
-            <circle
-              cx="42"
-              cy="42"
-              r={RING_RADIUS}
-              fill="none"
-              strokeWidth="8"
-              className="stroke-slate-200"
-            />
-            <circle
-              cx="42"
-              cy="42"
-              r={RING_RADIUS}
-              fill="none"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={`${dashLength} ${RING_CIRCUMFERENCE}`}
-              className="stroke-cyan-500"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-900">
-            {numericLitres === null ? '--' : `${Math.round(progress)}%`}
-          </div>
+    <div className="card">
+      <span className="title" style={{ display: 'block', marginBottom: 16 }}>Hydration</span>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {/* Ring */}
+        <div style={{ width: 96, height: 96, flexShrink: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <RadialBarChart
+              cx="50%"
+              cy="50%"
+              innerRadius="60%"
+              outerRadius="100%"
+              startAngle={90}
+              endAngle={-270}
+              barSize={10}
+              data={[{ value: 100, fill: 'var(--surface-container-low)' }, ...data]}
+            >
+              <RadialBar dataKey="value" cornerRadius={5} background={false} />
+            </RadialBarChart>
+          </ResponsiveContainer>
         </div>
 
+        {/* Text */}
         <div>
-          <p className="text-xl font-semibold text-slate-900">
-            {numericLitres === null ? '--' : `${numericLitres.toFixed(1)} L`}
-          </p>
-          <p className="text-sm text-slate-500">Target: {target.toFixed(1)} L</p>
+          <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+            {litres !== null ? numericLitres.toFixed(1) : '--'}
+          </div>
+          <div className="overline" style={{ marginBottom: 8 }}>Liters</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Daily Goal <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{target.toFixed(1)}L</span>
+          </div>
+          <div className="progress-track" style={{ height: 4, width: 80 }}>
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
+          </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 

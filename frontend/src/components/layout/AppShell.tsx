@@ -1,39 +1,26 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import Spinner from '../ui/Spinner';
-import BottomNav from './BottomNav';
+import BottomTabBar from './BottomTabBar';
 import ServerWakeupBanner from './ServerWakeupBanner';
 import Sidebar from './Sidebar';
+import TopBar from './TopBar';
 
 const AppShell = (): JSX.Element => {
   const { user, loading } = useAuth();
-  const location = useLocation();
-
-  const getCurrentPageTitle = (pathname: string): string => {
-    if (pathname === '/') {
-      return 'Home';
-    }
-    if (pathname.startsWith('/daily-log')) {
-      return 'Daily Log';
-    }
-    if (pathname.startsWith('/analytics')) {
-      return 'Analytics';
-    }
-    if (pathname.startsWith('/habits')) {
-      return 'Habits';
-    }
-    if (pathname.startsWith('/settings')) {
-      return 'Settings';
-    }
-    return 'NutriLog';
-  };
-
-  const currentPageTitle = getCurrentPageTitle(location.pathname);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div
+        style={{
+          display: 'flex',
+          minHeight: '100dvh',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--surface)'
+        }}
+      >
         <Spinner />
       </div>
     );
@@ -44,32 +31,29 @@ const AppShell = (): JSX.Element => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar — desktop only */}
-      <div className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:w-[240px] md:flex-col">
+    <div style={{ background: 'var(--surface)', minHeight: '100dvh' }}>
+      <ServerWakeupBanner />
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
         <Sidebar />
       </div>
 
+      {/* Mobile top bar */}
+      <TopBar />
+
       {/* Main content */}
-      <main className="min-h-screen pb-16 md:ml-[240px] md:pb-0">
-        <header className="border-b border-gray-100 bg-white md:hidden">
-          <div className="px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">NutriLog</p>
-            <h1 className="mt-0.5 text-lg font-semibold text-gray-900">{currentPageTitle}</h1>
-          </div>
-        </header>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="mb-4">
-            <ServerWakeupBanner />
-          </div>
-          <Outlet />
-        </div>
+      <main
+        style={{
+          minHeight: '100dvh'
+        }}
+        className="md:pl-[var(--sidebar-width)] pt-[calc(56px+var(--safe-top))] md:pt-0"
+      >
+        <Outlet />
       </main>
 
-      {/* Bottom nav — mobile only */}
-      <div className="md:hidden">
-        <BottomNav />
-      </div>
+      {/* Mobile bottom tab bar */}
+      <BottomTabBar />
     </div>
   );
 };

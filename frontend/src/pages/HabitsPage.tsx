@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import HabitForm from '../components/forms/HabitForm';
-import Badge from '../components/ui/Badge';
-import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
-import Modal from '../components/ui/Modal';
+import CommonModal from '../components/common/Modal';
 import {
   useArchiveHabit,
   useCreateHabit,
@@ -14,140 +11,275 @@ import {
   useReorderHabits,
   useUpdateHabit
 } from '../hooks/useHabits';
-import { habitsApi } from '../lib/api';
+import { habitsApi, habitLogsApi } from '../lib/api';
 import type { CreateHabitInput, Habit } from '../types';
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const ordinal = (n: number) =>
-  n +
-  (n % 10 === 1 && n !== 11
-    ? 'st'
-    : n % 10 === 2 && n !== 12
-      ? 'nd'
-      : n % 10 === 3 && n !== 13
-        ? 'rd'
-        : 'th');
-
-const formatFrequency = (habit: Habit): string => {
-  switch (habit.frequencyType) {
-    case 'daily':
-      return 'Daily';
-    case 'weekly':
-      return 'Weekly';
-    case 'monthly':
-      return 'Monthly';
-    case 'x_per_week':
-      return `${habit.frequencyX ?? 'X'} per week`;
-    case 'x_per_month':
-      return `${habit.frequencyX ?? 'X'} per month`;
-    case 'x_in_y_days':
-      return `${habit.frequencyX ?? 'X'} in ${habit.frequencyY ?? 'Y'} days`;
-    default:
-      return habit.frequencyType;
-  }
+const toIsoDate = (d: Date): string => d.toISOString().slice(0, 10);
+const addDays = (d: Date, n: number): Date => {
+  const copy = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  copy.setUTCDate(copy.getUTCDate() + n);
+  return copy;
 };
 
-const formatTarget = (habit: Habit): string => {
-  if (habit.targetValue === null || habit.targetDirection === null) {
-    return 'Target: none';
-  }
+const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-  const direction = habit.targetDirection === 'at_least' ? 'At least' : 'At most';
-  const unitSuffix = habit.habitType === 'count' && habit.unitLabel ? ` ${habit.unitLabel}` : '';
-  return `Target: ${direction} ${habit.targetValue}${unitSuffix}`;
+// Get last 7 days Mon→Sun alignment
+const getLast7Days = (): string[] => {
+  const todayUtc = new Date();
+  const today = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate()));
+  return Array.from({ length: 7 }, (_, i) => toIsoDate(addDays(today, i - 6)));
 };
 
-const formatCalorieBadge = (habit: Habit): string | null => {
-  if (!habit.isCalorieBurning || !habit.calorieUnit || !habit.calorieKcal) {
-    return null;
-  }
-  const unitText = habit.unitLabel ?? 'units';
-  return `${habit.calorieUnit} ${unitText} = ${habit.calorieKcal} kcal`;
+const HABIT_CATEGORY_ICONS: Record<string, string> = {
+  default: '✓',
+  water: '💧',
+  protein: '🥩',
+  sleep: '😴',
+  exercise: '🏃',
+  vitamin: '💊',
+  meditation: '🧘',
+  reading: '📚',
+  caffeine: '☕',
+  food: '🥗'
+};
+
+const getHabitIcon = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('water') || lower.includes('hydrat')) return '💧';
+  if (lower.includes('protein') || lower.includes('shake')) return '🥩';
+  if (lower.includes('sleep')) return '😴';
+  if (lower.includes('walk') || lower.includes('run') || lower.includes('workout') || lower.includes('exercise') || lower.includes('gym')) return '🏃';
+  if (lower.includes('vitamin') || lower.includes('supplement')) return '💊';
+  if (lower.includes('caffeine') || lower.includes('coffee')) return '☕';
+  if (lower.includes('eating') || lower.includes('sugar') || lower.includes('diet')) return '🥗';
+  if (lower.includes('meditat')) return '🧘';
+  return '✓';
+};
+
+const COLORS = ['#2563eb', '#f59e0b', '#22c55e', '#8b5cf6', '#ef4444', '#06b6d4'];
+
+type HabitCardProps = {
+  habit: Habit;
+  index: number;
+  last7Days: string[];
+  logsByHabitDate: Map<string, number>;
+  isFirst: boolean;
+  isLast: boolean;
+  onEdit: (h: Habit) => void;
+  onArchiveToggle: (id: string) => Promise<void>;
+  onDelete: (h: Habit) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 };
 
 const HabitCard = ({
   habit,
+  index,
+  last7Days,
+  logsByHabitDate,
+  isFirst,
+  isLast,
   onEdit,
   onArchiveToggle,
   onDelete,
   onMoveUp,
-  onMoveDown,
-  isFirst,
-  isLast
-}: {
-  habit: Habit;
-  onEdit: (habit: Habit) => void;
-  onArchiveToggle: (habitId: string) => Promise<void>;
-  onDelete: (habit: Habit) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  isFirst?: boolean;
-  isLast?: boolean;
-}): JSX.Element => {
-  const calorieLabel = formatCalorieBadge(habit);
-  const scheduledDayLabels = (habit.scheduledDays ?? [])
-    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
-    .map((day) => DAY_LABELS[day]);
-  const scheduledDateLabels = (habit.scheduledDates ?? [])
-    .filter((date) => Number.isInteger(date) && date >= 1 && date <= 31)
-    .map((date) => ordinal(date));
+  onMoveDown
+}: HabitCardProps): JSX.Element => {
+  const [expanded, setExpanded] = useState(true);
+  const [checked, setChecked] = useState(false);
+  const color = COLORS[index % COLORS.length];
+  const icon = getHabitIcon(habit.name);
+  const today = toIsoDate(new Date());
+  const todayValue = logsByHabitDate.get(`${habit.id}:${today}`);
+  const isTodayDone = todayValue !== undefined && todayValue > 0;
 
   return (
-    <Card>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-base font-semibold text-slate-900">{habit.name}</p>
-            <Badge variant="neutral">{habit.habitType === 'count' ? 'Count' : 'Boolean'}</Badge>
-            {calorieLabel ? <Badge variant="success">{calorieLabel}</Badge> : null}
-          </div>
-          <p className="text-sm text-slate-600">Frequency: {formatFrequency(habit)}</p>
-          {scheduledDayLabels.length > 0 ? (
-            <p className="mt-1 text-xs text-gray-500">📅 {scheduledDayLabels.join(', ')}</p>
-          ) : null}
-          {scheduledDateLabels.length > 0 ? (
-            <p className="mt-1 text-xs text-gray-500">📅 {scheduledDateLabels.join(', ')} of each month</p>
-          ) : null}
-          <p className="text-sm text-slate-600">{formatTarget(habit)}</p>
+    <div className="card">
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Checkbox */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isTodayDone}
+          onClick={() => setChecked((c) => !c)}
+          style={{
+            width: 20, height: 20,
+            borderRadius: 'var(--radius-sm)',
+            border: `2px solid ${isTodayDone ? 'var(--primary)' : 'var(--border-card)'}`,
+            background: isTodayDone ? 'var(--primary)' : 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background var(--transition), border-color var(--transition)'
+          }}
+        >
+          {isTodayDone && (
+            <svg viewBox="0 0 12 12" width={10} height={10} fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round">
+              <path d="M2 6l3 3 5-5" />
+            </svg>
+          )}
+        </button>
+
+        {/* Icon */}
+        <div
+          style={{
+            width: 36, height: 36,
+            borderRadius: 'var(--radius-lg)',
+            background: `${color}20`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, flexShrink: 0
+          }}
+        >
+          {icon}
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
-          <button
-            type="button"
-            aria-label="Move up"
-            disabled={isFirst}
-            onClick={onMoveUp}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            aria-label="Move down"
-            disabled={isLast}
-            onClick={onMoveDown}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            ↓
-          </button>
-          <Button type="button" variant="secondary" onClick={() => onEdit(habit)}>
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant={habit.isActive ? 'danger' : 'secondary'}
-            onClick={() => {
-              void onArchiveToggle(habit.id);
-            }}
-          >
-            {habit.isActive ? 'Archive' : 'Restore'}
-          </Button>
-          <Button type="button" variant="danger" onClick={() => onDelete(habit)}>
-            Delete
-          </Button>
+        {/* Name */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {habit.name}
+          </div>
         </div>
+
+        {/* Chevron */}
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          style={{
+            width: 32, height: 32,
+            borderRadius: 'var(--radius-sm)',
+            border: 'none', background: 'transparent',
+            cursor: 'pointer', color: 'var(--text-tertiary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded ? '↑' : '↓'}
+        </button>
       </div>
-    </Card>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div style={{ marginTop: 14 }}>
+          {/* Goal */}
+          {habit.targetValue !== null && habit.targetValue !== undefined && (
+            <p className="body" style={{ color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Goal: {habit.targetDirection === 'at_most' ? 'At most' : 'At least'} {habit.targetValue}{habit.unitLabel ? ` ${habit.unitLabel}` : ''}
+            </p>
+          )}
+
+          {/* 7-day grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+            {last7Days.map((date, di) => {
+              const val = logsByHabitDate.get(`${habit.id}:${date}`);
+              const isDone = val !== undefined && val > 0;
+              const isFuture = date > today;
+              const dayIdx = (new Date(`${date}T00:00:00.000Z`).getUTCDay() + 6) % 7; // 0=Mon
+              const dayLabel = DAY_LABELS[dayIdx] ?? DAY_LABELS[di];
+
+              return (
+                <div key={date} style={{ textAlign: 'center' }}>
+                  <div className="overline" style={{ fontSize: 9, marginBottom: 4 }}>{dayLabel}</div>
+                  <div
+                    style={{
+                      width: '100%',
+                      aspectRatio: '1',
+                      minWidth: 28,
+                      minHeight: 28,
+                      maxWidth: 36,
+                      margin: '0 auto',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700,
+                      background: isFuture
+                        ? 'var(--surface-container-low)'
+                        : isDone
+                          ? 'var(--success-bg)'
+                          : 'var(--surface-container-low)',
+                      color: isFuture
+                        ? 'var(--text-tertiary)'
+                        : isDone
+                          ? 'var(--success-text)'
+                          : 'var(--text-tertiary)'
+                    }}
+                  >
+                    {isFuture ? '—' : isDone ? '✓' : '✗'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ padding: '8px 14px', fontSize: 12, minHeight: 36 }}
+              onClick={() => onEdit(habit)}
+            >
+              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ padding: '8px 14px', fontSize: 12, minHeight: 36 }}
+              onClick={() => void onArchiveToggle(habit.id)}
+            >
+              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <polyline points="21 8 21 21 3 21 3 8" />
+                <rect x="1" y="3" width="22" height="5" />
+                <line x1="10" y1="12" x2="14" y2="12" />
+              </svg>
+              Archive
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{
+                padding: '8px 14px', fontSize: 12, minHeight: 36,
+                color: 'var(--danger)'
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--danger-bg)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-container-low)';
+              }}
+              onClick={() => onDelete(habit)}
+            >
+              <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4h6v2" />
+              </svg>
+              Delete
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ padding: '8px 10px', fontSize: 12, minHeight: 36 }}
+              disabled={isFirst}
+              onClick={onMoveUp}
+              aria-label="Move up"
+            >↑</button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ padding: '8px 10px', fontSize: 12, minHeight: 36 }}
+              disabled={isLast}
+              onClick={onMoveDown}
+              aria-label="Move down"
+            >↓</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -167,10 +299,9 @@ const HabitsPage = (): JSX.Element => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const updateHabit = useUpdateHabit(editingHabit?.id ?? '');
+
   const deleteHabitMutation = useMutation({
-    mutationFn: async (habitId: string) => {
-      await habitsApi.delete(habitId);
-    },
+    mutationFn: async (habitId: string) => { await habitsApi.delete(habitId); },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['habits'] }),
@@ -179,87 +310,55 @@ const HabitsPage = (): JSX.Element => {
       setDeletingHabit(null);
       setToastMessage('Habit deleted');
     },
-    onError: () => {
-      setPageError('Unable to delete habit right now. Please try again.');
-    }
+    onError: () => setPageError('Unable to delete habit right now. Please try again.')
   });
 
-  const sortedHabits = useMemo(
-    () => [...habits].sort((left, right) => left.displayOrder - right.displayOrder),
-    [habits]
-  );
+  // Load last 7 days of habit logs for the 7-day tracker grid
+  const last7Days = useMemo(() => getLast7Days(), []);
+  const startDate = last7Days[0];
+  const endDate = last7Days[last7Days.length - 1];
 
-  const activeHabits = useMemo(
-    () => sortedHabits.filter((habit) => habit.isActive),
-    [sortedHabits]
-  );
-  const archivedHabits = useMemo(
-    () => sortedHabits.filter((habit) => !habit.isActive),
-    [sortedHabits]
-  );
+  const habitLogsQuery = useQuery({
+    queryKey: ['habit-logs-week', startDate, endDate],
+    queryFn: async () => (await habitLogsApi.list({ startDate, endDate })).data,
+    enabled: last7Days.length > 0
+  });
+
+  const logsByHabitDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const log of habitLogsQuery.data ?? []) {
+      map.set(`${log.habitId}:${log.logDate}`, Number(log.value ?? 0));
+    }
+    return map;
+  }, [habitLogsQuery.data]);
+
+  const sortedHabits = useMemo(() => [...habits].sort((a, b) => a.displayOrder - b.displayOrder), [habits]);
+  const activeHabits = useMemo(() => sortedHabits.filter((h) => h.isActive), [sortedHabits]);
+  const archivedHabits = useMemo(() => sortedHabits.filter((h) => !h.isActive), [sortedHabits]);
 
   useEffect(() => {
-    setLocalActiveHabits((currentHabits) => {
-      const currentOrder = currentHabits.map((habit) => habit.id);
-      const nextOrder = activeHabits.map((habit) => habit.id);
-
-      if (
-        currentOrder.length === nextOrder.length &&
-        currentOrder.every((id, index) => id === nextOrder[index])
-      ) {
-        return currentHabits;
-      }
-
+    setLocalActiveHabits((current) => {
+      const currIds = current.map((h) => h.id);
+      const nextIds = activeHabits.map((h) => h.id);
+      if (currIds.length === nextIds.length && currIds.every((id, i) => id === nextIds[i])) return current;
       return activeHabits;
     });
   }, [activeHabits]);
 
   useEffect(() => {
-    if (!toastMessage) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setToastMessage(null);
-    }, 2600);
-
-    return () => window.clearTimeout(timer);
+    if (!toastMessage) return;
+    const t = window.setTimeout(() => setToastMessage(null), 2600);
+    return () => window.clearTimeout(t);
   }, [toastMessage]);
 
-  const handleOpenCreate = () => {
-    setPageError(null);
-    setEditingHabit(null);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (habit: Habit) => {
-    setPageError(null);
-    setEditingHabit(habit);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingHabit(null);
-  };
-
-  const handleOpenDeleteModal = (habit: Habit) => {
-    setPageError(null);
-    setDeletingHabit(habit);
-  };
-
-  const handleCloseDeleteModal = () => {
-    if (deleteHabitMutation.isPending) {
-      return;
-    }
-    setDeletingHabit(null);
-  };
+  const handleOpenCreate = () => { setPageError(null); setEditingHabit(null); setIsModalOpen(true); };
+  const handleOpenEdit = (h: Habit) => { setPageError(null); setEditingHabit(h); setIsModalOpen(true); };
+  const handleCloseModal = () => { setIsModalOpen(false); setEditingHabit(null); };
+  const handleOpenDelete = (h: Habit) => { setPageError(null); setDeletingHabit(h); };
+  const handleCloseDelete = () => { if (deleteHabitMutation.isPending) return; setDeletingHabit(null); };
 
   const initialFormValues = useMemo<Partial<CreateHabitInput> | undefined>(() => {
-    if (!editingHabit) {
-      return undefined;
-    }
-
+    if (!editingHabit) return undefined;
     return {
       name: editingHabit.name,
       habitType: editingHabit.habitType,
@@ -278,137 +377,184 @@ const HabitsPage = (): JSX.Element => {
   }, [editingHabit]);
 
   const handleSaveHabit = async (payload: CreateHabitInput) => {
-    if (editingHabit) {
-      await updateHabit.mutateAsync(payload);
-    } else {
-      await createHabit.mutateAsync(payload);
-    }
-
+    if (editingHabit) await updateHabit.mutateAsync(payload);
+    else await createHabit.mutateAsync(payload);
     handleCloseModal();
   };
 
   const handleArchiveToggle = async (habitId: string) => {
     setPageError(null);
-    try {
-      await archiveHabit.mutateAsync(habitId);
-    } catch {
-      setPageError('Unable to update habit status right now. Please try again.');
-    }
+    try { await archiveHabit.mutateAsync(habitId); }
+    catch { setPageError('Unable to update habit status. Please try again.'); }
   };
 
-  const handleMove = async (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= localActiveHabits.length) return;
-
-    const previousOrder = localActiveHabits;
-    const reordered = Array.from(localActiveHabits);
+  const handleMove = async (index: number, dir: 'up' | 'down') => {
+    const ti = dir === 'up' ? index - 1 : index + 1;
+    if (ti < 0 || ti >= localActiveHabits.length) return;
+    const prev = localActiveHabits;
+    const reordered = [...localActiveHabits];
     const [removed] = reordered.splice(index, 1);
-    reordered.splice(targetIndex, 0, removed);
-
+    reordered.splice(ti, 0, removed);
     setLocalActiveHabits(reordered);
     setPageError(null);
-
-    try {
-      await reorderHabits.mutateAsync(reordered.map((h) => h.id));
-    } catch {
-      setLocalActiveHabits(previousOrder);
-      setPageError('Unable to reorder habits. Please try again.');
-    }
+    try { await reorderHabits.mutateAsync(reordered.map((h) => h.id)); }
+    catch { setLocalActiveHabits(prev); setPageError('Unable to reorder habits. Please try again.'); }
   };
 
   const isFormSaving = createHabit.isPending || updateHabit.isPending;
 
   return (
-    <section className="space-y-5">
-      {toastMessage ? (
-        <div className="fixed right-4 top-4 z-40 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+    <div className="page-container">
+      {/* Toast */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed', top: 24, right: 24, zIndex: 60,
+            background: 'var(--success-bg)', color: 'var(--success-text)',
+            borderRadius: 'var(--radius-md)', padding: '8px 16px',
+            fontSize: 13, fontWeight: 600, boxShadow: 'var(--shadow-float)'
+          }}
+        >
           {toastMessage}
         </div>
-      ) : null}
+      )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Habits</h1>
-        <Button type="button" onClick={handleOpenCreate}>
-          Add Habit
-        </Button>
+      {/* Page header */}
+      <div
+        style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}
+        className="flex-col gap-3 md:!flex-row md:!items-center"
+      >
+        <div>
+          <span className="page-eyebrow">Performance Engineering</span>
+          <h1 className="headline">Habits</h1>
+        </div>
+        <button type="button" className="btn-primary" onClick={handleOpenCreate}>
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Habit
+        </button>
       </div>
 
-      {pageError ? <p className="text-sm text-danger">{pageError}</p> : null}
+      {pageError && (
+        <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 16 }}>{pageError}</p>
+      )}
 
-      <Card
-        title="Active Habits"
-        action={<span className="text-sm text-slate-500">Use ↑↓ to reorder</span>}
-      >
-        {isLoading ? (
-          <p className="text-sm text-slate-500">Loading habits...</p>
-        ) : localActiveHabits.length === 0 ? (
-          <p className="text-sm text-slate-500">No active habits yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {localActiveHabits.map((habit, index) => (
-              <HabitCard
+      {/* Active habits grid */}
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 14 }}>
+          Loading habits...
+        </div>
+      ) : localActiveHabits.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+          <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>No active habits yet. Create your first habit!</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="md:!grid-cols-2">
+          {localActiveHabits.map((habit, i) => (
+            <HabitCard
+              key={habit.id}
+              habit={habit}
+              index={i}
+              last7Days={last7Days}
+              logsByHabitDate={logsByHabitDate}
+              isFirst={i === 0}
+              isLast={i === localActiveHabits.length - 1}
+              onEdit={handleOpenEdit}
+              onArchiveToggle={handleArchiveToggle}
+              onDelete={handleOpenDelete}
+              onMoveUp={() => void handleMove(i, 'up')}
+              onMoveDown={() => void handleMove(i, 'down')}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Archived section */}
+      <div style={{ marginTop: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, cursor: 'pointer' }}
+          onClick={() => setArchivedOpen((o) => !o)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, color: 'var(--text-tertiary)', fontWeight: 600 }}>
+              {archivedOpen ? '∨' : '>'} Archived Habits ({archivedHabits.length})
+            </span>
+          </div>
+          <span className="overline">Historical Data</span>
+        </div>
+
+        {archivedOpen && archivedHabits.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {archivedHabits.map((habit) => (
+              <div
                 key={habit.id}
-                habit={habit}
-                isFirst={index === 0}
-                isLast={index === localActiveHabits.length - 1}
-                onMoveUp={() => {
-                  void handleMove(index, 'up');
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 16px',
+                  background: 'var(--surface-container)',
+                  borderRadius: 'var(--radius-lg)',
+                  opacity: 0.7
                 }}
-                onMoveDown={() => {
-                  void handleMove(index, 'down');
-                }}
-                onEdit={handleOpenEdit}
-                onArchiveToggle={handleArchiveToggle}
-                onDelete={handleOpenDeleteModal}
-              />
+              >
+                <span style={{ fontSize: 16 }}>{getHabitIcon(habit.name)}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{habit.name}</div>
+                </div>
+                <button
+                  type="button"
+                  title="Restore"
+                  onClick={() => void handleArchiveToggle(habit.id)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-tertiary)', padding: 4
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                    <path d="M1 4v6h6" />
+                    <path d="M23 20v-6h-6" />
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  title="Delete"
+                  onClick={() => handleOpenDelete(habit)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--danger)', padding: 4
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
-      <Card
-        title={
-          <button
-            type="button"
-            onClick={() => setArchivedOpen((open) => !open)}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center text-base font-semibold text-slate-900"
-          >
-            Archived Habits ({archivedHabits.length})
-          </button>
-        }
-        action={
-          <Button type="button" size="sm" variant="ghost" onClick={() => setArchivedOpen((open) => !open)}>
-            {archivedOpen ? 'Hide' : 'Show'}
-          </Button>
-        }
-      >
-        {archivedOpen ? (
-          archivedHabits.length === 0 ? (
-            <p className="text-sm text-slate-500">No archived habits.</p>
-          ) : (
-            <div className="space-y-3">
-              {archivedHabits.map((habit) => (
-                <HabitCard
-                  key={habit.id}
-                  habit={habit}
-                  isFirst
-                  isLast
-                  onEdit={handleOpenEdit}
-                  onArchiveToggle={handleArchiveToggle}
-                  onDelete={handleOpenDeleteModal}
-                />
-              ))}
-            </div>
-          )
-        ) : (
-          <p className="text-sm text-slate-500">Archived list is collapsed.</p>
-        )}
-      </Card>
-
-      <Modal
+      {/* New/Edit Habit Modal */}
+      <CommonModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title={editingHabit ? 'Edit Habit' : 'Add Habit'}
+        title={editingHabit ? 'Edit Habit' : 'New Habit'}
+        maxWidth={520}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={handleCloseModal}>Cancel</button>
+            <button
+              type="button"
+              form="habit-form"
+              className="btn-primary"
+              disabled={isFormSaving}
+            >
+              {isFormSaving ? 'Saving...' : 'Save Habit'}
+            </button>
+          </>
+        }
       >
         <HabitForm
           initialValues={initialFormValues}
@@ -417,45 +563,57 @@ const HabitsPage = (): JSX.Element => {
           onCancel={handleCloseModal}
           onSubmit={handleSaveHabit}
         />
-      </Modal>
+      </CommonModal>
 
-      <Modal
+      {/* Delete Modal */}
+      <CommonModal
         isOpen={Boolean(deletingHabit)}
-        onClose={handleCloseDeleteModal}
+        onClose={handleCloseDelete}
         title="Delete Habit"
+        maxWidth={400}
         footer={
           <>
-            <Button
+            <button
               type="button"
-              variant="secondary"
-              onClick={handleCloseDeleteModal}
+              className="btn-secondary"
+              onClick={handleCloseDelete}
               disabled={deleteHabitMutation.isPending}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
-              variant="danger"
-              loading={deleteHabitMutation.isPending}
+              className="btn-danger"
+              disabled={deleteHabitMutation.isPending}
               onClick={() => {
-                if (!deletingHabit) {
-                  return;
-                }
+                if (!deletingHabit) return;
                 void deleteHabitMutation.mutateAsync(deletingHabit.id);
               }}
             >
-              Delete Permanently
-            </Button>
+              {deleteHabitMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+            </button>
           </>
         }
       >
-        <p className="text-sm text-slate-700">
-          {deletingHabit
-            ? `This will permanently delete '${deletingHabit.name}' and all its logged history. This cannot be undone.`
-            : ''}
-        </p>
-      </Modal>
-    </section>
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <div
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: 'var(--warning-bg)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', fontSize: 24
+            }}
+          >
+            ⚠️
+          </div>
+          <p className="body" style={{ color: 'var(--text-secondary)' }}>
+            {deletingHabit
+              ? `This will permanently delete "${deletingHabit.name}" and all its logged history. This cannot be undone.`
+              : ''}
+          </p>
+        </div>
+      </CommonModal>
+    </div>
   );
 };
 

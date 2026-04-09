@@ -5,17 +5,41 @@ import { isAxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import DailyLogForm, { type DailyLogFormSubmitPayload } from '../components/forms/DailyLogForm';
-import Input from '../components/ui/Input';
 import { useAuth } from '../hooks/useAuth';
 import { useHabits } from '../hooks/useHabits';
 import { habitLogsApi, logsApi } from '../lib/api';
 
-const toIsoDate = (date: Date): string => {
-  return date.toISOString().slice(0, 10);
+const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
+
+const isIsoDate = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const formatDisplayDate = (isoDate: string): string => {
+  const d = new Date(`${isoDate}T00:00:00.000Z`);
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(d).toUpperCase();
 };
 
-const isIsoDate = (value: string): boolean => {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+const ChevronLeft = () => (
+  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+    <path d="M15 18l-6-6 6-6" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+    <path d="M9 18l6-6-6-6" />
+  </svg>
+);
+
+const addDays = (isoDate: string, days: number): string => {
+  const d = new Date(`${isoDate}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return toIsoDate(d);
 };
 
 const DailyLogPage = (): JSX.Element => {
@@ -26,9 +50,7 @@ const DailyLogPage = (): JSX.Element => {
 
   const today = useMemo(() => toIsoDate(new Date()), []);
   const selectedDate = useMemo(() => {
-    if (!routeDate) {
-      return today;
-    }
+    if (!routeDate) return today;
     return isIsoDate(routeDate) ? routeDate : today;
   }, [routeDate, today]);
 
@@ -36,12 +58,8 @@ const DailyLogPage = (): JSX.Element => {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!toastMessage) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setToastMessage(null);
-    }, 2600);
+    if (!toastMessage) return;
+    const timer = window.setTimeout(() => setToastMessage(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
@@ -49,12 +67,9 @@ const DailyLogPage = (): JSX.Element => {
     queryKey: ['logs', selectedDate],
     queryFn: async () => {
       try {
-        const response = await logsApi.getByDate(selectedDate);
-        return response.data;
+        return (await logsApi.getByDate(selectedDate)).data;
       } catch (error) {
-        if (isAxiosError(error) && error.response?.status === 404) {
-          return null;
-        }
+        if (isAxiosError(error) && error.response?.status === 404) return null;
         throw error;
       }
     }
@@ -63,10 +78,7 @@ const DailyLogPage = (): JSX.Element => {
   const habitLogsQuery = useQuery({
     queryKey: ['habit-logs', selectedDate],
     queryFn: async () => {
-      const response = await habitLogsApi.list({
-        startDate: selectedDate,
-        endDate: selectedDate
-      });
+      const response = await habitLogsApi.list({ startDate: selectedDate, endDate: selectedDate });
       return response.data;
     }
   });
@@ -75,21 +87,18 @@ const DailyLogPage = (): JSX.Element => {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: DailyLogFormSubmitPayload) => {
-      const existingLog = logQuery.data;
-
-      if (existingLog) {
+      if (logQuery.data) {
         await logsApi.update(selectedDate, payload.logData);
       } else {
         await logsApi.create(payload.logData);
       }
-
       await Promise.all(
-        payload.habitLogs.map((habitPayload) =>
+        payload.habitLogs.map((hp) =>
           habitLogsApi.upsert({
-            habitId: habitPayload.habitId,
+            habitId: hp.habitId,
             logDate: selectedDate,
-            value: habitPayload.value,
-            notes: habitPayload.notes
+            value: hp.value,
+            notes: hp.notes
           })
         )
       );
@@ -113,37 +122,141 @@ const DailyLogPage = (): JSX.Element => {
     }
   });
 
-  const title = logQuery.data ? "Edit Today's Log" : `Log for ${selectedDate}`;
   const isLoading = logQuery.isLoading || habitLogsQuery.isLoading || habitsLoading;
+  const consumed = logQuery.data?.caloriesConsumed ? Number(logQuery.data.caloriesConsumed) : null;
+  const burned = (habitLogsQuery.data ?? []).reduce((s, l) => s + Number(l.caloriesBurned ?? 0), 0);
+  const netBalance = consumed !== null ? consumed - burned : null;
+  const calorieTarget = user?.calorieTarget ?? 2300;
 
   return (
-    <section className="space-y-5">
+    <div className="page-container">
+      {/* Toast */}
       {toastMessage ? (
-        <div className="fixed right-4 top-4 z-40 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+        <div
+          style={{
+            position: 'fixed',
+            top: 24,
+            right: 24,
+            zIndex: 60,
+            background: 'var(--success-bg)',
+            color: 'var(--success-text)',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: 'var(--shadow-float)'
+          }}
+        >
           {toastMessage}
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        <div className="w-full md:w-64">
-          <Input
-            label="Log Date"
-            type="date"
-            value={selectedDate}
-            onChange={(event) => {
-              const nextDate = event.target.value;
-              if (!nextDate || !isIsoDate(nextDate)) {
-                return;
-              }
-              navigate(`/daily-log/${nextDate}`);
-            }}
-          />
+      {/* Page header */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          marginBottom: 24
+        }}
+        className="md:!flex-row md:!items-start md:!justify-between"
+      >
+        <div>
+          <span className="page-eyebrow">{formatDisplayDate(selectedDate)}</span>
+          <h1 className="headline">Daily Log</h1>
+        </div>
+
+        {/* Date navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ padding: '10px 14px', minWidth: 40 }}
+            onClick={() => navigate(`/daily-log/${addDays(selectedDate, -1)}`)}
+          >
+            <ChevronLeft />
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ padding: '10px 16px' }}
+            onClick={() => navigate(`/daily-log/${today}`)}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ padding: '10px 14px', minWidth: 40 }}
+            disabled={selectedDate >= today}
+            onClick={() => navigate(`/daily-log/${addDays(selectedDate, 1)}`)}
+          >
+            <ChevronRight />
+          </button>
         </div>
       </div>
 
+      {/* Dark summary bar */}
+      <div
+        className="card-hero"
+        style={{ padding: '16px 24px', marginBottom: 24 }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 0
+          }}
+        >
+          {[
+            { label: 'Consumed', value: consumed?.toLocaleString() ?? '–', unit: 'kcal', color: 'var(--primary)' },
+            { label: 'Burned', value: burned > 0 ? burned.toLocaleString() : '–', unit: 'kcal', color: '#ffffff' },
+            { label: 'Net Balance', value: netBalance?.toLocaleString() ?? '–', unit: '', color: '#ffffff' },
+            { label: `Target: ${Number(calorieTarget).toLocaleString()}`, value: '', unit: '', color: '#ffffff', isProgress: true }
+          ].map((stat, i) => (
+            <div
+              key={stat.label}
+              style={{
+                borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                padding: '0 16px',
+                textAlign: 'center'
+              }}
+            >
+              <div className="overline" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
+                {stat.label}
+              </div>
+              {stat.isProgress ? (
+                <>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ffffff', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+                    {netBalance?.toLocaleString() ?? '–'}
+                  </div>
+                  {netBalance !== null && (
+                    <div style={{ marginTop: 6 }}>
+                      <div className="progress-track" style={{ height: 4 }}>
+                        <div
+                          className="progress-fill"
+                          style={{ width: `${Math.min(100, ((netBalance / Number(calorieTarget)) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: stat.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+                  {stat.value}
+                  {stat.unit && <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginLeft: 4 }}>{stat.unit}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Form */}
       {isLoading ? (
-        <p className="text-sm text-slate-500">Loading daily log...</p>
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 14 }}>
+          Loading daily log...
+        </div>
       ) : (
         <DailyLogForm
           date={selectedDate}
@@ -159,7 +272,7 @@ const DailyLogPage = (): JSX.Element => {
           }}
         />
       )}
-    </section>
+    </div>
   );
 };
 

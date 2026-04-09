@@ -5,7 +5,6 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import CalorieBurnTrendChart from '../charts/CalorieBurnTrendChart';
 import HabitHeatmapChart from '../charts/HabitHeatmapChart';
 import HabitTargetBarChart from '../charts/HabitTargetBarChart';
-import Card from '../ui/Card';
 import Skeleton from '../ui/Skeleton';
 import type { AnalyticsResult } from '../../types';
 
@@ -21,151 +20,158 @@ const HabitTab = ({ data, isLoading, startDate, endDate }: Props): JSX.Element =
   const [selectedHabitId, setSelectedHabitId] = useState<string>('');
 
   useEffect(() => {
-    if (habits.length === 0) {
-      setSelectedHabitId('');
-      return;
-    }
-
-    if (!selectedHabitId || !habits.some((habit) => habit.habitId === selectedHabitId)) {
+    if (habits.length === 0) { setSelectedHabitId(''); return; }
+    if (!selectedHabitId || !habits.some((h) => h.habitId === selectedHabitId)) {
       setSelectedHabitId(habits[0].habitId);
     }
   }, [habits, selectedHabitId]);
 
   const selectedHabit = useMemo(
-    () => habits.find((habit) => habit.habitId === selectedHabitId),
+    () => habits.find((h) => h.habitId === selectedHabitId),
     [habits, selectedHabitId]
   );
 
-  const averageCompletionRate =
-    habits.length > 0
-      ? habits.reduce((sum, habit) => sum + Number(habit.completionRate ?? 0), 0) / habits.length
-      : null;
+  const avgCompletion = habits.length > 0
+    ? habits.reduce((s, h) => s + Number(h.completionRate ?? 0), 0) / habits.length
+    : null;
 
-  const streaks = [...habits]
-    .filter((habit) => habit.currentStreak > 2)
-    .sort((left, right) => right.currentStreak - left.currentStreak);
+  const activeStreaks = [...habits].filter((h) => h.currentStreak > 2).sort((a, b) => b.currentStreak - a.currentStreak);
 
   const donutData = [
-    {
-      name: 'Completed',
-      value:
-        averageCompletionRate === null
-          ? 0
-          : Math.max(0, Math.min(100, Number(averageCompletionRate.toFixed(1))))
-    },
-    {
-      name: 'Missed',
-      value:
-        averageCompletionRate === null
-          ? 100
-          : 100 - Math.max(0, Math.min(100, Number(averageCompletionRate.toFixed(1))))
-    }
+    { name: 'Completed', value: avgCompletion !== null ? Math.max(0, Math.min(100, Number(avgCompletion.toFixed(1)))) : 0 },
+    { name: 'Missed', value: avgCompletion !== null ? 100 - Math.max(0, Math.min(100, Number(avgCompletion.toFixed(1)))) : 100 }
   ];
 
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-gray-500">
-        Period: {startDate} to {endDate}
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Scorecard row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }} className="md:!grid-cols-4">
+        {/* Hero: completion rate */}
+        <div className="card-hero" style={{ padding: 16 }}>
+          <div className="overline" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Completion Rate</div>
+          <div className="display" style={{ color: '#ffffff', lineHeight: 1.1 }}>
+            {avgCompletion !== null ? `${Math.round(avgCompletion)}%` : '–'}
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>of scheduled habits</div>
+        </div>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Card title="Completion Rate">
+        <div className="card" style={{ padding: 16 }}>
+          <div className="overline" style={{ marginBottom: 8 }}>Active Streaks</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            {activeStreaks.length}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="overline" style={{ marginBottom: 8 }}>Total Completions</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            {habits.reduce((s, h) => s + h.totalCompletions, 0)}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="overline" style={{ marginBottom: 8 }}>Avg Daily Burns</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            –
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>kcal</div>
+        </div>
+      </div>
+
+      {/* Charts row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="md:!grid-cols-2">
+        {/* Completion donut */}
+        <div className="card">
+          <h3 className="title" style={{ marginBottom: 16 }}>Habit Completion Over Time</h3>
           {isLoading ? (
             <Skeleton className="h-44 w-full" />
           ) : (
-            <div className="flex flex-col items-center justify-center">
-              <div className="h-36 w-36">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 144, height: 144 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={donutData}
-                      dataKey="value"
-                      innerRadius={42}
-                      outerRadius={62}
-                      startAngle={90}
-                      endAngle={-270}
-                      stroke="none"
-                    >
+                    <Pie data={donutData} dataKey="value" innerRadius={42} outerRadius={62} startAngle={90} endAngle={-270} stroke="none">
                       <Cell fill="#22c55e" />
-                      <Cell fill="#e5e7eb" />
+                      <Cell fill="var(--surface-container-low)" />
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">
-                {averageCompletionRate === null ? '-' : `${averageCompletionRate.toFixed(0)}%`}
-              </p>
-              <p className="text-sm text-gray-500">of scheduled habits completed</p>
-            </div>
-          )}
-        </Card>
-
-        <Card title="Active Streaks">
-          {isLoading ? (
-            <Skeleton className="h-44 w-full" />
-          ) : streaks.length === 0 ? (
-            <p className="text-sm text-gray-400">No active streaks yet</p>
-          ) : (
-            <div className="space-y-2">
-              {streaks.map((habit) => (
-                <div key={habit.habitId} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                  <span className="text-sm font-medium text-gray-700">{habit.habitName}</span>
-                  <span className="text-sm text-gray-600">{'\ud83d\udd25'} {habit.currentStreak} days</span>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {avgCompletion !== null ? `${Math.round(avgCompletion)}%` : '–'}
                 </div>
-              ))}
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>completed</div>
+              </div>
             </div>
           )}
-        </Card>
+        </div>
 
-        <Card title="Calorie Burn Trend">
+        {/* Calorie burn trend */}
+        <div className="card">
+          <h3 className="title" style={{ marginBottom: 16 }}>Calorie Burn Trend</h3>
           {data && !isLoading ? (
             <CalorieBurnTrendChart dailyLogs={data.dailyLogSummaries} />
           ) : (
             <Skeleton className="h-[250px] w-full" />
           )}
-        </Card>
-      </section>
+        </div>
+      </div>
 
-      <Card title="Habit Deep-Dive">
+      {/* Habit deep-dive */}
+      <div className="card">
+        <h3 className="title" style={{ marginBottom: 16 }}>Habit Deep-Dive</h3>
         {isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : habits.length === 0 ? (
-          <p className="text-sm text-gray-500">No habits tracked in this period</p>
+          <p style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>No habits tracked in this period</p>
         ) : (
-          <div className="space-y-4">
-            <select
-              value={selectedHabitId}
-              onChange={(event) => setSelectedHabitId(event.target.value)}
-              className="min-h-[44px] w-full rounded-xl border border-gray-200 px-3 text-sm text-gray-700"
-            >
-              {habits.map((habit) => (
-                <option key={habit.habitId} value={habit.habitId}>
-                  {habit.habitName}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Habit selector */}
+            <div>
+              <label className="field-label" htmlFor="habit-select">Select a habit</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  id="habit-select"
+                  className="input"
+                  value={selectedHabitId}
+                  onChange={(e) => setSelectedHabitId(e.target.value)}
+                  style={{ paddingRight: 36, appearance: 'none', cursor: 'pointer' }}
+                >
+                  {habits.map((h) => (
+                    <option key={h.habitId} value={h.habitId}>{h.habitName}</option>
+                  ))}
+                </select>
+                <span style={{ position: 'absolute', right: 12, top: 0, bottom: 0, display: 'flex', alignItems: 'center', fontSize: 12, color: 'var(--text-tertiary)', pointerEvents: 'none' }}>▾</span>
+              </div>
+            </div>
 
-            {selectedHabit ? (
+            {selectedHabit && (
               <>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <div className="rounded-xl bg-gray-50 p-3 text-center">
-                    <p className="text-xs text-gray-500">Current Streak</p>
-                    <p className="mt-1 font-semibold text-gray-900">{'\ud83d\udd25'} {selectedHabit.currentStreak} days</p>
-                  </div>
-                  <div className="rounded-xl bg-gray-50 p-3 text-center">
-                    <p className="text-xs text-gray-500">Longest Streak</p>
-                    <p className="mt-1 font-semibold text-gray-900">{selectedHabit.longestStreak} days</p>
-                  </div>
-                  <div className="rounded-xl bg-gray-50 p-3 text-center">
-                    <p className="text-xs text-gray-500">Completion Rate</p>
-                    <p className="mt-1 font-semibold text-gray-900">{selectedHabit.completionRate.toFixed(0)}%</p>
-                  </div>
-                  <div className="rounded-xl bg-gray-50 p-3 text-center">
-                    <p className="text-xs text-gray-500">Total Completions</p>
-                    <p className="mt-1 font-semibold text-gray-900">{selectedHabit.totalCompletions} times</p>
-                  </div>
+                {/* 4 mini scorecards */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }} className="md:!grid-cols-4">
+                  {[
+                    { label: 'Current Streak', value: `🔥 ${selectedHabit.currentStreak} days` },
+                    { label: 'Longest Streak', value: `${selectedHabit.longestStreak} days` },
+                    { label: 'Completion Rate', value: `${selectedHabit.completionRate.toFixed(0)}%` },
+                    { label: 'Total Completions', value: `${selectedHabit.totalCompletions}` }
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      style={{
+                        background: 'var(--surface-container-low)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '12px',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div className="overline" style={{ marginBottom: 6 }}>{s.label}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
+                    </div>
+                  ))}
                 </div>
 
+                {/* Heatmap */}
                 {data && !isLoading ? (
                   <HabitHeatmapChart
                     habit={selectedHabit}
@@ -176,20 +182,15 @@ const HabitTab = ({ data, isLoading, startDate, endDate }: Props): JSX.Element =
                   <Skeleton className="h-[200px] w-full" />
                 )}
 
-                {selectedHabit.habitType === 'count' ? (
-                  <>
-                    {data && !isLoading ? (
-                      <HabitTargetBarChart habit={selectedHabit} />
-                    ) : (
-                      <Skeleton className="h-[250px] w-full" />
-                    )}
-                  </>
+                {/* Target bar chart (count habits only) */}
+                {selectedHabit.habitType === 'count' && data && !isLoading ? (
+                  <HabitTargetBarChart habit={selectedHabit} />
                 ) : null}
               </>
-            ) : null}
+            )}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 };

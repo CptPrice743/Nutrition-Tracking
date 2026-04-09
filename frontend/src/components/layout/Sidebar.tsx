@@ -1,109 +1,228 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
-import { cn } from '../../lib/utils';
+import ThemeToggle from './ThemeToggle';
+
+const DashboardIcon = () => (
+  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="8" height="8" rx="1.5" />
+    <rect x="13" y="3" width="8" height="8" rx="1.5" />
+    <rect x="3" y="13" width="8" height="8" rx="1.5" />
+    <rect x="13" y="13" width="8" height="8" rx="1.5" />
+  </svg>
+);
+
+const DailyLogIcon = () => (
+  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M8 2v4M16 2v4M3 10h18" />
+    <path d="M12 14v4M10 16h4" />
+  </svg>
+);
+
+const AnalyticsIcon = () => (
+  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 17 8 12 13 15 21 7" />
+  </svg>
+);
+
+const HabitsIcon = () => (
+  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
 
 const navItems = [
-  {
-    to: '/',
-    label: 'Home',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5.5v-6h-5v6H4a1 1 0 0 1-1-1v-9.5z" />
-      </svg>
-    )
-  },
-  {
-    to: '/daily-log',
-    label: 'Daily Log',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path strokeLinecap="round" d="M8 3v4M16 3v4M3 10h18" />
-      </svg>
-    )
-  },
-  {
-    to: '/analytics',
-    label: 'Analytics',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" d="M4 20V9m8 11V4m8 16v-7" />
-      </svg>
-    )
-  },
-  {
-    to: '/habits',
-    label: 'Habits',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="12" cy="12" r="9" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12.5l2.5 2.5L16 9.5" />
-      </svg>
-    )
-  },
-  {
-    to: '/settings',
-    label: 'Settings',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8 3.5-.9-.3a7.6 7.6 0 0 0-.5-1.3l.5-.8a1 1 0 0 0-.2-1.2l-1.2-1.2a1 1 0 0 0-1.2-.2l-.8.5c-.4-.2-.8-.4-1.3-.5L14 4a1 1 0 0 0-1-.8h-2a1 1 0 0 0-1 .8l-.3.9c-.5.1-.9.3-1.3.5l-.8-.5a1 1 0 0 0-1.2.2L5.2 6.3a1 1 0 0 0-.2 1.2l.5.8c-.2.4-.4.8-.5 1.3L4 10a1 1 0 0 0-.8 1v2a1 1 0 0 0 .8 1l.9.3c.1.5.3.9.5 1.3l-.5.8a1 1 0 0 0 .2 1.2l1.2 1.2a1 1 0 0 0 1.2.2l.8-.5c.4.2.8.4 1.3.5l.3.9a1 1 0 0 0 1 .8h2a1 1 0 0 0 1-.8l.3-.9c.5-.1.9-.3 1.3-.5l.8.5a1 1 0 0 0 1.2-.2l1.2-1.2a1 1 0 0 0 .2-1.2l-.5-.8c.2-.4.4-.8.5-1.3l.9-.3a1 1 0 0 0 .8-1v-2a1 1 0 0 0-.8-1z"
-        />
-      </svg>
-    )
-  }
+  { to: '/', label: 'Dashboard', icon: DashboardIcon, end: true },
+  { to: '/daily-log', label: 'Daily Log', icon: DailyLogIcon, end: false },
+  { to: '/analytics', label: 'Analytics', icon: AnalyticsIcon, end: false },
+  { to: '/habits', label: 'Habits', icon: HabitsIcon, end: false },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon, end: false }
 ];
 
 const Sidebar = (): JSX.Element => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const location = useLocation();
 
-  const userEmail = user?.email ?? 'user@nutrilog.app';
-  const userInitial = (user?.displayName ?? userEmail).trim().charAt(0).toUpperCase() || 'U';
+  const displayName = user?.displayName ?? user?.email ?? 'User';
+  const email = user?.email ?? '';
+  const initials = displayName
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'U';
 
   return (
-    <aside className="h-full w-full bg-white border-r border-gray-100 flex flex-col">
-      <div className="p-4">
-        <h1 className="mb-6 text-xl font-semibold text-slate-900">NutriLog</h1>
+    <aside
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '100vh',
+        width: 'var(--sidebar-width)',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--surface-container)',
+        zIndex: 40,
+        overflowY: 'auto'
+      }}
+      className="dark:!bg-[#0d1421]"
+    >
+      {/* Logo */}
+      <div
+        style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '0 20px',
+          flexShrink: 0
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            background: '#2563eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}
+        >
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>N</span>
+        </div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            NutriLog
+          </div>
+          <div className="overline" style={{ fontSize: 9, marginTop: 1 }}>
+            Elite Performance
+          </div>
+        </div>
       </div>
-      <nav className="space-y-2 px-4">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                isActive
-                  ? 'bg-accent-50 text-accent-700 font-semibold'
-                  : 'text-gray-600 hover:bg-gray-50'
-              )
-            }
-          >
-            {item.icon}
-            {item.label}
-          </NavLink>
-        ))}
+
+      {/* Nav */}
+      <nav
+        style={{
+          flex: 1,
+          padding: '8px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2
+        }}
+      >
+        {navItems.map(({ to, label, icon: Icon, end }) => {
+          const isActive = end
+            ? location.pathname === to
+            : location.pathname === to || location.pathname.startsWith(to + '/');
+
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                height: 40,
+                borderRadius: 'var(--radius-md)',
+                paddingLeft: isActive ? 9 : 12,
+                paddingRight: 12,
+                textDecoration: 'none',
+                fontSize: 13,
+                fontWeight: 600,
+                transition: 'background var(--transition), color var(--transition)',
+                color: isActive ? 'var(--primary)' : 'var(--text-tertiary)',
+                background: isActive ? 'var(--primary-dim)' : 'transparent',
+                borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLAnchorElement).style.background = 'var(--surface-container-low)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                }
+              }}
+            >
+              <Icon />
+              <span>{label}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
-      <div className="mt-auto border-t border-gray-100 p-4">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-100 text-sm font-semibold text-accent-700">
-            {userInitial}
-          </div>
-          <p className="truncate text-sm text-gray-700">{userEmail}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            void signOut();
+      {/* Bottom: user + theme toggle */}
+      <div
+        style={{
+          padding: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'var(--surface-container-low)'
+        }}
+        className="dark:!bg-[#0a0f1a]"
+      >
+        {/* Avatar */}
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: 'var(--info-bg)',
+            color: 'var(--info-text)',
+            fontSize: 13,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
           }}
-          className="inline-flex min-h-[44px] min-w-[44px] w-full items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
         >
-          Sign Out
-        </button>
+          {initials}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {displayName.split(' ')[0]}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--text-tertiary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {email}
+          </div>
+        </div>
+
+        <ThemeToggle />
       </div>
     </aside>
   );

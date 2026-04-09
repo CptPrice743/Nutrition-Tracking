@@ -1,7 +1,5 @@
 import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 
-import { cn } from '../../lib/utils';
-
 type SelectOption = {
   value: string;
   label: string;
@@ -15,26 +13,28 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'children'> & {
 };
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, options, error, id, className, ...props }, ref) => {
+  ({ label, options, error, id, style, ...props }, ref) => {
     const generatedId = useId();
     const selectId = id ?? generatedId;
     const errorId = `${selectId}-error`;
 
     return (
-      <div className="space-y-1.5">
-        <label htmlFor={selectId} className="text-sm font-medium text-slate-700">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label htmlFor={selectId} className="field-label" style={{ margin: 0 }}>
           {label}
         </label>
-        <div className="relative">
+        <div style={{ position: 'relative' }}>
           <select
             ref={ref}
             id={selectId}
-            className={cn(
-              'w-full rounded-xl border bg-white px-3 pr-9 text-sm text-slate-900 transition-colors',
-              'min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500',
-              error ? 'border-danger' : 'border-slate-300',
-              className
-            )}
+            className="input"
+            style={{
+              borderColor: error ? 'var(--danger)' : undefined,
+              paddingRight: 36,
+              appearance: 'none',
+              cursor: 'pointer',
+              ...style
+            }}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
             {...props}
@@ -45,10 +45,24 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             ))}
           </select>
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500">▾</span>
+          <span
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              right: 12,
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 12,
+              color: 'var(--text-tertiary)',
+              pointerEvents: 'none'
+            }}
+          >
+            ▾
+          </span>
         </div>
         {error ? (
-          <p id={errorId} className="text-sm text-danger">
+          <p id={errorId} style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
             {error}
           </p>
         ) : null}
