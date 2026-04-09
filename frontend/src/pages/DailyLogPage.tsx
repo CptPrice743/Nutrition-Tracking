@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import DailyLogForm, { type DailyLogFormSubmitPayload } from '../components/forms/DailyLogForm';
 import Input from '../components/ui/Input';
+import { useAuth } from '../hooks/useAuth';
 import { useHabits } from '../hooks/useHabits';
 import { habitLogsApi, logsApi } from '../lib/api';
 
@@ -21,6 +22,7 @@ const DailyLogPage = (): JSX.Element => {
   const { date: routeDate } = useParams<{ date: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const today = useMemo(() => toIsoDate(new Date()), []);
   const selectedDate = useMemo(() => {
@@ -148,6 +150,7 @@ const DailyLogPage = (): JSX.Element => {
           existingLog={logQuery.data ?? null}
           habits={habits}
           habitLogs={habitLogsQuery.data ?? []}
+          calorieTarget={user?.calorieTarget ?? null}
           isSaving={saveMutation.isPending}
           saveError={saveError}
           onSubmit={async (payload) => {

@@ -105,9 +105,11 @@ const Modal = ({ isOpen, onClose, title, children, footer }: ModalProps): JSX.El
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={cn('w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl')}
+        className={cn(
+          'w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl max-h-[90vh] flex flex-col'
+        )}
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
           <h2 id={titleId} className="text-lg font-semibold text-slate-900">
             {title}
           </h2>
@@ -120,8 +122,8 @@ const Modal = ({ isOpen, onClose, title, children, footer }: ModalProps): JSX.El
             ×
           </button>
         </div>
-        <div>{children}</div>
-        {footer ? <div className="mt-5 flex justify-end gap-2">{footer}</div> : null}
+        <div className="overflow-y-auto grow">{children}</div>
+        {footer ? <div className="mt-5 flex shrink-0 justify-end gap-2">{footer}</div> : null}
       </div>
     </div>,
     document.body

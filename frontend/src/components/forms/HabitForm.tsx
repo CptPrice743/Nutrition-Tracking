@@ -23,11 +23,16 @@ type FieldName =
   | 'frequencyType'
   | 'frequencyX'
   | 'frequencyY'
+  | 'scheduledDays'
+  | 'scheduledDates'
   | 'targetValue'
   | 'targetDirection'
   | 'isCalorieBurning'
   | 'calorieUnit'
   | 'calorieKcal';
+
+const DAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTH_DATE_OPTIONS = Array.from({ length: 31 }, (_, index) => index + 1);
 
 const toOptionalNumber = (value: unknown): number | undefined => {
   if (typeof value === 'string') {
@@ -67,6 +72,8 @@ const habitFormSchema = z
       toOptionalNumber,
       z.number().int('Must be a whole number').positive('Must be greater than 0').optional()
     ),
+    scheduledDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+    scheduledDates: z.array(z.number().int().min(1).max(31)).max(31).optional(),
     targetValue: z.preprocess(
       toOptionalNumber,
       z.number().nonnegative('Must be 0 or greater').optional()
@@ -144,6 +151,8 @@ const HabitForm = ({
   const [frequencyType, setFrequencyType] = useState<CreateHabitInput['frequencyType']>('daily');
   const [frequencyX, setFrequencyX] = useState('');
   const [frequencyY, setFrequencyY] = useState('');
+  const [scheduledDays, setScheduledDays] = useState<number[]>([]);
+  const [scheduledDates, setScheduledDates] = useState<number[]>([]);
   const [targetValue, setTargetValue] = useState('');
   const [targetDirection, setTargetDirection] = useState<'at_least' | 'at_most'>('at_least');
   const [isCalorieBurning, setIsCalorieBurning] = useState(false);
@@ -166,6 +175,8 @@ const HabitForm = ({
         ? ''
         : String(initialValues.frequencyY)
     );
+    setScheduledDays(initialValues?.scheduledDays ?? []);
+    setScheduledDates(initialValues?.scheduledDates ?? []);
     setTargetValue(
       initialValues?.targetValue === undefined || initialValues?.targetValue === null
         ? ''
@@ -186,23 +197,28 @@ const HabitForm = ({
     setErrors({});
   }, [initialValues]);
 
+  useEffect(() => {
+    if (frequencyType !== 'x_per_week' && scheduledDays.length > 0) {
+      setScheduledDays([]);
+    }
+
+    if (frequencyType !== 'x_per_month' && frequencyType !== 'monthly' && scheduledDates.length > 0) {
+      setScheduledDates([]);
+    }
+  }, [frequencyType, scheduledDates.length, scheduledDays.length]);
+
   const showFrequencyX =
-    frequencyType === 'x_per_week' ||
-    frequencyType === 'x_per_month' ||
     frequencyType === 'x_in_y_days';
   const showFrequencyY = frequencyType === 'x_in_y_days';
+  const showScheduledDays = frequencyType === 'x_per_week';
+  const showScheduledDates = frequencyType === 'x_per_month' || frequencyType === 'monthly';
+  const hasSelectedScheduledDays = showScheduledDays && scheduledDays.length > 0;
+  const hasSelectedScheduledDates = frequencyType === 'x_per_month' && scheduledDates.length > 0;
+  const showManualFrequencyX =
+    (frequencyType === 'x_per_week' && !hasSelectedScheduledDays) ||
+    (frequencyType === 'x_per_month' && !hasSelectedScheduledDates);
   const showUnitLabel = habitType === 'count';
   const showTargetValue = habitType === 'count';
-
-  const frequencyXLabel = useMemo(() => {
-    if (frequencyType === 'x_per_week') {
-      return 'How many times per week?';
-    }
-    if (frequencyType === 'x_per_month') {
-      return 'How many times per month?';
-    }
-    return 'How many times';
-  }, [frequencyType]);
 
   const targetValueLabel = useMemo(() => {
     const trimmedUnit = unitLabel.trim();
@@ -221,6 +237,48 @@ const HabitForm = ({
     return `${calorieUnit.trim()} ${unitText} = ${calorieKcal.trim()} kcal`;
   }, [isCalorieBurning, calorieKcal, calorieUnit, showUnitLabel, unitLabel]);
 
+  useEffect(() => {
+    if (frequencyType === 'x_per_week' && scheduledDays.length > 0) {
+      setFrequencyX(String(scheduledDays.length));
+      return;
+    }
+
+    if (frequencyType === 'x_per_month' && scheduledDates.length > 0) {
+      setFrequencyX(String(scheduledDates.length));
+      return;
+    }
+
+    if (frequencyType === 'daily') {
+      setFrequencyX('1');
+      return;
+    }
+
+    if (frequencyType === 'weekly') {
+      setFrequencyX('1');
+      return;
+    }
+
+    if (frequencyType === 'monthly') {
+      setFrequencyX('1');
+    }
+  }, [frequencyType, scheduledDates.length, scheduledDays.length]);
+
+  const toggleScheduledDay = (dayIndex: number) => {
+    setScheduledDays((currentDays) =>
+      currentDays.includes(dayIndex)
+        ? currentDays.filter((entry) => entry !== dayIndex)
+        : [...currentDays, dayIndex].sort((left, right) => left - right)
+    );
+  };
+
+  const toggleScheduledDate = (dayOfMonth: number) => {
+    setScheduledDates((currentDates) =>
+      currentDates.includes(dayOfMonth)
+        ? currentDates.filter((entry) => entry !== dayOfMonth)
+        : [...currentDates, dayOfMonth].sort((left, right) => left - right)
+    );
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrors({});
@@ -232,8 +290,10 @@ const HabitForm = ({
       frequencyType,
       frequencyX,
       frequencyY,
+      scheduledDays,
+      scheduledDates,
       targetValue: habitType === 'count' ? targetValue : undefined,
-      targetDirection: targetDirection || undefined,
+      targetDirection: habitType === 'count' ? targetDirection || undefined : undefined,
       isCalorieBurning,
       calorieUnit,
       calorieKcal
@@ -268,6 +328,9 @@ const HabitForm = ({
     if (parsed.data.frequencyType === 'x_in_y_days' && parsed.data.frequencyY !== undefined) {
       payload.frequencyY = parsed.data.frequencyY;
     }
+
+    payload.scheduledDays = parsed.data.scheduledDays ?? [];
+    payload.scheduledDates = parsed.data.scheduledDates ?? [];
 
     if (parsed.data.targetDirection) {
       payload.targetDirection = parsed.data.targetDirection;
@@ -328,16 +391,6 @@ const HabitForm = ({
         </div>
       </fieldset>
 
-      {showUnitLabel ? (
-        <Input
-          label="Unit Label"
-          value={unitLabel}
-          onChange={(event) => setUnitLabel(event.target.value)}
-          placeholder="e.g. steps, glasses"
-          error={errors.unitLabel}
-        />
-      ) : null}
-
       <Select
         label="Frequency Type"
         value={frequencyType}
@@ -355,10 +408,93 @@ const HabitForm = ({
         error={errors.frequencyType}
       />
 
+      {showScheduledDays ? (
+        <div className="space-y-2">
+          <div>
+            <p className="text-sm font-medium text-slate-700">On which days?</p>
+            <p className="text-xs text-gray-400">Optional — leave blank for any days</p>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {DAY_OPTIONS.map((dayLabel, dayIndex) => {
+              const selected = scheduledDays.includes(dayIndex);
+              return (
+                <button
+                  key={dayLabel}
+                  type="button"
+                  className={`min-w-[40px] h-[40px] rounded-full text-sm font-medium transition-colors ${
+                    selected
+                      ? 'bg-accent-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => toggleScheduledDay(dayIndex)}
+                >
+                  {dayLabel}
+                </button>
+              );
+            })}
+          </div>
+
+          {hasSelectedScheduledDays ? (
+            <p className="text-xs text-gray-400">
+              Frequency auto-set to {scheduledDays.length} times based on your selection
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showScheduledDates ? (
+        <div className="space-y-2">
+          <div>
+            <p className="text-sm font-medium text-slate-700">On which dates?</p>
+            <p className="text-xs text-gray-400">Optional — leave blank for any dates</p>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2">
+            {MONTH_DATE_OPTIONS.map((dayOfMonth) => {
+              const selected = scheduledDates.includes(dayOfMonth);
+              return (
+                <button
+                  key={dayOfMonth}
+                  type="button"
+                  className={`min-w-[40px] h-[40px] rounded-full text-sm font-medium transition-colors ${
+                    selected
+                      ? 'bg-accent-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  onClick={() => toggleScheduledDate(dayOfMonth)}
+                >
+                  {dayOfMonth}
+                </button>
+              );
+            })}
+          </div>
+
+          {hasSelectedScheduledDates ? (
+            <p className="text-xs text-gray-400">
+              Frequency auto-set to {scheduledDates.length} times based on your selection
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showManualFrequencyX ? (
+        <Input
+          label="How many times?"
+          type="number"
+          min={1}
+          max={frequencyType === 'x_per_week' ? 7 : 31}
+          step={1}
+          value={frequencyX}
+          onChange={(event) => setFrequencyX(event.target.value)}
+          error={errors.frequencyX}
+        />
+      ) : null}
+
       {showFrequencyX ? (
         <div className={showFrequencyY ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
           <Input
-            label={frequencyXLabel}
+            label="Times"
             type="number"
             min={1}
             step={1}
@@ -381,18 +517,29 @@ const HabitForm = ({
         </div>
       ) : null}
 
-      <div className={showTargetValue ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
-        {showTargetValue ? (
-          <Input
-            label={targetValueLabel}
-            type="number"
-            min={0}
-            step="0.01"
-            value={targetValue}
-            onChange={(event) => setTargetValue(event.target.value)}
-            error={errors.targetValue}
-          />
-        ) : null}
+      {showUnitLabel ? (
+        <Input
+          label="Unit Label"
+          value={unitLabel}
+          onChange={(event) => setUnitLabel(event.target.value)}
+          placeholder="e.g. steps, glasses"
+          error={errors.unitLabel}
+        />
+      ) : null}
+
+      {showTargetValue ? (
+        <Input
+          label={targetValueLabel}
+          type="number"
+          min={0}
+          step="0.01"
+          value={targetValue}
+          onChange={(event) => setTargetValue(event.target.value)}
+          error={errors.targetValue}
+        />
+      ) : null}
+
+      {showTargetValue ? (
         <Select
           label="Goal direction"
           value={targetDirection}
@@ -403,7 +550,7 @@ const HabitForm = ({
           onChange={(event) => setTargetDirection(event.target.value as 'at_least' | 'at_most')}
           error={errors.targetDirection}
         />
-      </div>
+      ) : null}
 
       <div className="space-y-2 rounded-xl border border-slate-200 p-3">
         <Toggle

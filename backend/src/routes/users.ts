@@ -1,11 +1,11 @@
 import { Router } from 'express';
 
-import { getAnalyticsController } from '../controllers/analytics';
+import { updateMeController } from '../controllers/users';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
 router.use(requireAuth);
-router.get('/', getAnalyticsController);
+router.put('/me', updateMeController);
 
 export default router;

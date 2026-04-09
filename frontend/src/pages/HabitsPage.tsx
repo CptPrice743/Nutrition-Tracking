@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
 import HabitForm from '../components/forms/HabitForm';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -12,7 +14,19 @@ import {
   useReorderHabits,
   useUpdateHabit
 } from '../hooks/useHabits';
+import { habitsApi } from '../lib/api';
 import type { CreateHabitInput, Habit } from '../types';
+
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const ordinal = (n: number) =>
+  n +
+  (n % 10 === 1 && n !== 11
+    ? 'st'
+    : n % 10 === 2 && n !== 12
+      ? 'nd'
+      : n % 10 === 3 && n !== 13
+        ? 'rd'
+        : 'th');
 
 const formatFrequency = (habit: Habit): string => {
   switch (habit.frequencyType) {
@@ -55,6 +69,7 @@ const HabitCard = ({
   habit,
   onEdit,
   onArchiveToggle,
+  onDelete,
   onMoveUp,
   onMoveDown,
   isFirst,
@@ -63,12 +78,19 @@ const HabitCard = ({
   habit: Habit;
   onEdit: (habit: Habit) => void;
   onArchiveToggle: (habitId: string) => Promise<void>;
+  onDelete: (habit: Habit) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   isFirst?: boolean;
   isLast?: boolean;
 }): JSX.Element => {
   const calorieLabel = formatCalorieBadge(habit);
+  const scheduledDayLabels = (habit.scheduledDays ?? [])
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .map((day) => DAY_LABELS[day]);
+  const scheduledDateLabels = (habit.scheduledDates ?? [])
+    .filter((date) => Number.isInteger(date) && date >= 1 && date <= 31)
+    .map((date) => ordinal(date));
 
   return (
     <Card>
@@ -80,6 +102,12 @@ const HabitCard = ({
             {calorieLabel ? <Badge variant="success">{calorieLabel}</Badge> : null}
           </div>
           <p className="text-sm text-slate-600">Frequency: {formatFrequency(habit)}</p>
+          {scheduledDayLabels.length > 0 ? (
+            <p className="mt-1 text-xs text-gray-500">📅 {scheduledDayLabels.join(', ')}</p>
+          ) : null}
+          {scheduledDateLabels.length > 0 ? (
+            <p className="mt-1 text-xs text-gray-500">📅 {scheduledDateLabels.join(', ')} of each month</p>
+          ) : null}
           <p className="text-sm text-slate-600">{formatTarget(habit)}</p>
         </div>
 
@@ -114,6 +142,9 @@ const HabitCard = ({
           >
             {habit.isActive ? 'Archive' : 'Restore'}
           </Button>
+          <Button type="button" variant="danger" onClick={() => onDelete(habit)}>
+            Delete
+          </Button>
         </div>
       </div>
     </Card>
@@ -121,6 +152,7 @@ const HabitCard = ({
 };
 
 const HabitsPage = (): JSX.Element => {
+  const queryClient = useQueryClient();
   const { data: habits = [], isLoading } = useHabits();
   const createHabit = useCreateHabit();
   const archiveHabit = useArchiveHabit();
@@ -128,11 +160,29 @@ const HabitsPage = (): JSX.Element => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [deletingHabit, setDeletingHabit] = useState<Habit | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [localActiveHabits, setLocalActiveHabits] = useState<Habit[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const updateHabit = useUpdateHabit(editingHabit?.id ?? '');
+  const deleteHabitMutation = useMutation({
+    mutationFn: async (habitId: string) => {
+      await habitsApi.delete(habitId);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['habits'] }),
+        queryClient.invalidateQueries({ queryKey: ['habit-logs'] })
+      ]);
+      setDeletingHabit(null);
+      setToastMessage('Habit deleted');
+    },
+    onError: () => {
+      setPageError('Unable to delete habit right now. Please try again.');
+    }
+  });
 
   const sortedHabits = useMemo(
     () => [...habits].sort((left, right) => left.displayOrder - right.displayOrder),
@@ -164,6 +214,18 @@ const HabitsPage = (): JSX.Element => {
     });
   }, [activeHabits]);
 
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setToastMessage(null);
+    }, 2600);
+
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
   const handleOpenCreate = () => {
     setPageError(null);
     setEditingHabit(null);
@@ -181,6 +243,18 @@ const HabitsPage = (): JSX.Element => {
     setEditingHabit(null);
   };
 
+  const handleOpenDeleteModal = (habit: Habit) => {
+    setPageError(null);
+    setDeletingHabit(habit);
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (deleteHabitMutation.isPending) {
+      return;
+    }
+    setDeletingHabit(null);
+  };
+
   const initialFormValues = useMemo<Partial<CreateHabitInput> | undefined>(() => {
     if (!editingHabit) {
       return undefined;
@@ -193,6 +267,8 @@ const HabitsPage = (): JSX.Element => {
       frequencyType: editingHabit.frequencyType,
       frequencyX: editingHabit.frequencyX ?? undefined,
       frequencyY: editingHabit.frequencyY ?? undefined,
+      scheduledDays: editingHabit.scheduledDays ?? undefined,
+      scheduledDates: editingHabit.scheduledDates ?? undefined,
       targetValue: editingHabit.targetValue ?? undefined,
       targetDirection: editingHabit.targetDirection ?? undefined,
       isCalorieBurning: editingHabit.isCalorieBurning,
@@ -244,6 +320,12 @@ const HabitsPage = (): JSX.Element => {
 
   return (
     <section className="space-y-5">
+      {toastMessage ? (
+        <div className="fixed right-4 top-4 z-40 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+          {toastMessage}
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Habits</h1>
         <Button type="button" onClick={handleOpenCreate}>
@@ -277,6 +359,7 @@ const HabitsPage = (): JSX.Element => {
                 }}
                 onEdit={handleOpenEdit}
                 onArchiveToggle={handleArchiveToggle}
+                onDelete={handleOpenDeleteModal}
               />
             ))}
           </div>
@@ -312,6 +395,7 @@ const HabitsPage = (): JSX.Element => {
                   isLast
                   onEdit={handleOpenEdit}
                   onArchiveToggle={handleArchiveToggle}
+                  onDelete={handleOpenDeleteModal}
                 />
               ))}
             </div>
@@ -333,6 +417,43 @@ const HabitsPage = (): JSX.Element => {
           onCancel={handleCloseModal}
           onSubmit={handleSaveHabit}
         />
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(deletingHabit)}
+        onClose={handleCloseDeleteModal}
+        title="Delete Habit"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCloseDeleteModal}
+              disabled={deleteHabitMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deleteHabitMutation.isPending}
+              onClick={() => {
+                if (!deletingHabit) {
+                  return;
+                }
+                void deleteHabitMutation.mutateAsync(deletingHabit.id);
+              }}
+            >
+              Delete Permanently
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-700">
+          {deletingHabit
+            ? `This will permanently delete '${deletingHabit.name}' and all its logged history. This cannot be undone.`
+            : ''}
+        </p>
       </Modal>
     </section>
   );

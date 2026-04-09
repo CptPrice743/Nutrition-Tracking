@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { prisma } from '../lib/prisma';
-import { sessionCreateSchema, updateMeSchema } from '../schemas/auth';
+import { sessionCreateSchema } from '../schemas/auth';
 import { createSession } from '../services/auth';
 
 export const createSessionController = async (
@@ -24,7 +23,12 @@ export const createSessionController = async (
 			user: {
 				id: user.id,
 				email: user.email,
-				displayName: user.displayName
+				displayName: user.displayName,
+				age: user.age,
+				gender: user.gender,
+				heightCm: user.heightCm !== null ? Number(user.heightCm) : null,
+				activityLevel: user.activityLevel,
+				calorieTarget: user.calorieTarget
 			}
 		});
 	} catch (error) {
@@ -47,36 +51,5 @@ export const deleteSessionController = (
 		res.status(200).json({ message: 'Logged out' });
 	} catch (error) {
 		next(error);
-	}
-};
-
-export const updateMeController = async (
-	req: Request,
-	res: Response,
-	next: NextFunction
-): Promise<void | Response> => {
-	try {
-		const userId = req.user?.id;
-		if (!userId) {
-			return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
-		}
-
-		const { displayName } = updateMeSchema.parse(req.body);
-		const normalizedDisplayName = displayName.length === 0 ? null : displayName;
-
-		const user = await prisma.user.update({
-			where: { id: userId },
-			data: { displayName: normalizedDisplayName }
-		});
-
-		return res.status(200).json({
-			user: {
-				id: user.id,
-				email: user.email,
-				displayName: user.displayName
-			}
-		});
-	} catch (error) {
-		return next(error);
 	}
 };

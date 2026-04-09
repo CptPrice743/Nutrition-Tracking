@@ -11,6 +11,7 @@ import habitLogsRoutes from './routes/habitLogs';
 import habitsRoutes from './routes/habits';
 import importExportRoutes from './routes/importExport';
 import logsRoutes from './routes/logs';
+import usersRoutes from './routes/users';
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use('/api', authRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/habits', habitsRoutes);
 app.use('/api/habit-logs', habitLogsRoutes);

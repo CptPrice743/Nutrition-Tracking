@@ -6,6 +6,7 @@ import {
 	HabitsServiceError,
 	archiveHabit,
 	createHabit,
+	deleteHabit,
 	getHabits,
 	reorderHabits,
 	updateHabit
@@ -103,6 +104,24 @@ export const archiveHabitController = async (
 		if (error instanceof HabitsServiceError) {
 			return respondServiceError(error, res);
 		}
+		return next(error);
+	}
+};
+
+export const deleteHabitController = async (
+	req: Request,
+	res: Response,
+	next: NextFunction
+): Promise<void | Response> => {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+		}
+
+		await deleteHabit(userId, req.params.id);
+		return res.status(200).json({ message: 'Habit deleted' });
+	} catch (error) {
 		return next(error);
 	}
 };

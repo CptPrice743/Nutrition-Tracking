@@ -12,6 +12,10 @@ export type DailyLog = {
   fatSaturatedG: number | null;
   fatUnsaturatedG: number | null;
   fatTransG: number | null;
+  fiberG: number | null;
+  sugarsG: number | null;
+  sodiumMg: number | null;
+  calciumMg: number | null;
   magnesiumMg: number | null;
   ironMg: number | null;
   zincMg: number | null;
@@ -30,6 +34,10 @@ export type CreateDailyLogInput = {
   fatSaturatedG?: number;
   fatUnsaturatedG?: number;
   fatTransG?: number;
+  fiberG?: number;
+  sugarsG?: number;
+  sodiumMg?: number;
+  calciumMg?: number;
   magnesiumMg?: number;
   ironMg?: number;
   zincMg?: number;
@@ -49,6 +57,8 @@ export type Habit = {
   frequencyType: 'daily' | 'weekly' | 'monthly' | 'x_per_week' | 'x_per_month' | 'x_in_y_days';
   frequencyX: number | null;
   frequencyY: number | null;
+  scheduledDays: number[] | null;
+  scheduledDates: number[] | null;
   targetValue: number | null;
   targetDirection: 'at_least' | 'at_most' | null;
   isCalorieBurning: boolean;
@@ -65,6 +75,8 @@ export type CreateHabitInput = {
   frequencyType: 'daily' | 'weekly' | 'monthly' | 'x_per_week' | 'x_per_month' | 'x_in_y_days';
   frequencyX?: number;
   frequencyY?: number;
+  scheduledDays?: number[];
+  scheduledDates?: number[];
   targetValue?: number;
   targetDirection?: 'at_least' | 'at_most';
   isCalorieBurning?: boolean;
@@ -94,35 +106,67 @@ export type UpsertHabitLogInput = {
 export type HabitDailyValue = {
   date: string;
   value: number | null;
+  caloriesBurned?: number | null;
 };
 
-export type HabitWeeklySummary = {
+export type DailyLogSummary = {
+  date: string;
+  weightKg: number | null;
+  caloriesConsumed: number | null;
+  caloriesBurned: number | null;
+  netCalories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatTotalG: number | null;
+  fatSaturatedG: number | null;
+  fatUnsaturatedG: number | null;
+  fiberG: number | null;
+  sugarsG: number | null;
+  sodiumMg: number | null;
+  calciumMg: number | null;
+  waterLitres: number | null;
+  dayType: string | null;
+};
+
+export type HabitPeriodSummary = {
   habitId: string;
   habitName: string;
   habitType: 'count' | 'boolean';
+  unitLabel?: string | null;
+  frequencyType: string;
+  scheduledDays: number[] | null;
+  scheduledDates: number[] | null;
   targetValue: number | null;
   targetDirection: 'at_least' | 'at_most' | null;
-  dailyValues: HabitDailyValue[];
+  isCalorieBurning: boolean;
+  dailyValues: { date: string; value: number | null; caloriesBurned: number | null }[];
   totalCaloriesBurned: number;
+  completionRate: number;
+  currentStreak: number;
+  longestStreak: number;
+  totalCompletions: number;
 };
 
-export type WeeklyAnalytics = {
-  weekLabel: string;
+export type AnalyticsResult = {
   startDate: string;
   endDate: string;
   daysLogged: number;
   avgWeightKg: number | null;
-  weightDeltaVsPrevWeek: number | null;
+  weightDeltaVsPrevPeriod: number | null;
   avgCaloriesConsumed: number | null;
   avgCaloriesBurned: number | null;
   avgNetCalories: number | null;
-  totalWeeklyDeficitSurplus: number | null;
+  totalPeriodDeficitSurplus: number | null;
   avgProteinG: number | null;
   avgCarbsG: number | null;
   avgFatTotalG: number | null;
   avgFatSaturatedG: number | null;
   avgFatUnsaturatedG: number | null;
   avgFatTransG: number | null;
+  avgFiberG: number | null;
+  avgSugarsG: number | null;
+  avgSodiumMg: number | null;
+  avgCalciumMg: number | null;
   avgMagnesiumMg: number | null;
   avgIronMg: number | null;
   avgZincMg: number | null;
@@ -132,19 +176,13 @@ export type WeeklyAnalytics = {
   estimatedTDEE: number | null;
   tdeeConfidenceBand: number | null;
   rollingAvgTDEE: number | null;
-  dailyLogs: {
-    date: string;
-    weightKg: number | null;
-    caloriesConsumed: number | null;
-    caloriesBurned: number | null;
-    netCalories: number | null;
-    proteinG: number | null;
-    carbsG: number | null;
-    fatTotalG: number | null;
-    waterLitres: number | null;
-  }[];
-  habitSummaries: HabitWeeklySummary[];
+  baselineTDEE: number | null;
+  dailyLogSummaries: DailyLogSummary[];
+  habitSummaries: HabitPeriodSummary[];
 };
+
+export type HabitWeeklySummary = HabitPeriodSummary;
+export type WeeklyAnalytics = AnalyticsResult & { dailyLogs: DailyLogSummary[] };
 
 export type DashboardWidgetLayout = {
   widgetId: string;
@@ -156,10 +194,29 @@ export type DashboardLayoutResponse = {
   layoutJson: DashboardWidgetLayout[];
 };
 
-export type AuthUser = {
+export type UserGender = 'male' | 'female' | 'other';
+export type ActivityLevel = 'sedentary' | 'light_active' | 'highly_active';
+
+export type User = {
   id: string;
   email: string;
   displayName: string | null;
+  age: number | null;
+  gender: UserGender | null;
+  heightCm: number | null;
+  activityLevel: ActivityLevel | null;
+  calorieTarget: number | null;
+};
+
+export type AuthUser = User;
+
+export type UpdateProfileInput = {
+  displayName?: string;
+  age?: number;
+  gender?: UserGender;
+  heightCm?: number;
+  activityLevel?: ActivityLevel;
+  calorieTarget?: number;
 };
 
 export type CsvImportPreview = {

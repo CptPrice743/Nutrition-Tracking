@@ -5,7 +5,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
-  type User
+  type User as FirebaseUser
 } from 'firebase/auth';
 import {
   createContext,
@@ -19,34 +19,37 @@ import {
 
 import { auth } from '../config/firebase';
 import { authApi } from '../lib/api';
+import type { AuthUser } from '../types';
 
 type AuthContextValue = {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  setUserProfile: (user: AuthUser) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
-
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser: FirebaseUser | null) => {
       if (nextUser) {
         try {
           const idToken = await nextUser.getIdToken();
-          await authApi.createSession(idToken);
+          const response = await authApi.createSession(idToken);
+          setUser(response.data.user);
         } catch {
           await firebaseSignOut(auth);
           setUser(null);
         }
+      } else {
+        setUser(null);
       }
 
       setLoading(false);
@@ -77,9 +80,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
     }
   }, []);
 
+  const setUserProfile = useCallback((nextUser: AuthUser) => {
+    setUser(nextUser);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, signInWithGoogle, signInWithEmail, signUp, signOut }),
-    [loading, signInWithEmail, signInWithGoogle, signOut, signUp, user]
+    () => ({ user, loading, signInWithGoogle, signInWithEmail, signUp, signOut, setUserProfile }),
+    [loading, setUserProfile, signInWithEmail, signInWithGoogle, signOut, signUp, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

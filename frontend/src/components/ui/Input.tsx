@@ -1,4 +1,4 @@
-import { forwardRef, useId, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '../../lib/utils';
 
@@ -7,10 +7,11 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   error?: string;
   hint?: string;
   unit?: string;
+  labelAction?: ReactNode;
 };
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, unit, id, className, ...props }, ref) => {
+  ({ label, error, hint, unit, labelAction, id, className, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const hintId = `${inputId}-hint`;
@@ -18,9 +19,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="space-y-1.5">
-        <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
+            {label}
+          </label>
+          {labelAction ? <div>{labelAction}</div> : null}
+        </div>
         <div className="relative">
           <input
             ref={ref}

@@ -14,6 +14,11 @@ model User {
   firebaseUid  String   @unique @map("firebase_uid")
   email        String   @unique
   displayName  String?  @map("display_name")
+  age          Int?
+  gender       String?
+  heightCm     Decimal? @map("height_cm") @db.Decimal(5, 1)
+  activityLevel String? @map("activity_level")
+  calorieTarget Int?    @map("calorie_target")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -37,6 +42,10 @@ model DailyLog {
   fatSaturatedG     Int?     @map("fat_saturated_g")
   fatUnsaturatedG   Int?     @map("fat_unsaturated_g")
   fatTransG         Decimal? @map("fat_trans_g") @db.Decimal(4, 2)
+  fiberG            Int?     @map("fiber_g")
+  sugarsG           Int?     @map("sugars_g")
+  sodiumMg          Int?     @map("sodium_mg")
+  calciumMg         Int?     @map("calcium_mg")
   magnesiumMg       Int?     @map("magnesium_mg")
   ironMg            Decimal? @map("iron_mg") @db.Decimal(5, 2)
   zincMg            Decimal? @map("zinc_mg") @db.Decimal(5, 2)
@@ -62,6 +71,8 @@ model Habit {
   frequencyType    String   @map("frequency_type")
   frequencyX       Int?     @map("frequency_x")
   frequencyY       Int?     @map("frequency_y")
+  scheduledDays    String?  @map("scheduled_days")  // serialised JSON number[] e.g. "[0,3]" - 0=Mon, 6=Sun
+  scheduledDates   String?  @map("scheduled_dates") // serialised JSON number[] e.g. "[1,15]" - 1-31
   targetValue      Decimal? @map("target_value")
   targetDirection  String?  @map("target_direction")
   isCalorieBurning Boolean  @default(false) @map("is_calorie_burning")

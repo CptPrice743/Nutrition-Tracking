@@ -30,17 +30,6 @@ const addUtcDays = (date: Date, days: number): Date => {
   return copy;
 };
 
-const toISOWeekParam = (date: Date): string => {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - day + 3);
-  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  const firstThursdayDay = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayDay + 3);
-  const weekNum = Math.round((d.getTime() - firstThursday.getTime()) / 604800000) + 1;
-  return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-};
-
 const toNumberOrNull = (value: number | null | undefined): number | null => {
   if (value === null || value === undefined) {
     return null;
@@ -70,7 +59,12 @@ const DashboardPage = (): JSX.Element => {
   const todayDate = useMemo(() => new Date(`${todayUtc}T00:00:00.000Z`), [todayUtc]);
   const sparklineStart = useMemo(() => toIsoDateUtc(addUtcDays(todayDate, -6)), [todayDate]);
   const streakStart = useMemo(() => toIsoDateUtc(addUtcDays(todayDate, -59)), [todayDate]);
-  const currentWeekParam = useMemo(() => toISOWeekParam(todayDate), [todayDate]);
+  const currentWeekStart = useMemo(() => {
+    const d = new Date(Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()));
+    const day = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - day);
+    return toIsoDateUtc(d);
+  }, [todayDate]);
 
   const todayLogQuery = useQuery({
     queryKey: ['dashboard', 'today-log', todayUtc],
@@ -94,8 +88,14 @@ const DashboardPage = (): JSX.Element => {
   });
 
   const weeklyAnalyticsQuery = useQuery({
-    queryKey: ['dashboard', 'weekly-analytics', currentWeekParam],
-    queryFn: async () => (await analyticsApi.weekly(currentWeekParam)).data
+    queryKey: ['dashboard', 'weekly-analytics', currentWeekStart, todayUtc],
+    queryFn: async () =>
+      (
+        await analyticsApi.get({
+          startDate: currentWeekStart,
+          endDate: todayUtc
+        })
+      ).data
   });
 
   const dashboardLayoutQuery = useQuery({
@@ -145,7 +145,7 @@ const DashboardPage = (): JSX.Element => {
     netToday === null ? 'neutral' : netToday < 0 ? 'success' : netToday <= 200 ? 'warning' : 'danger';
 
   const weeklyAvgWeight = toNumberOrNull(weeklyAnalyticsQuery.data?.avgWeightKg);
-  const weeklyDelta = toNumberOrNull(weeklyAnalyticsQuery.data?.weightDeltaVsPrevWeek);
+  const weeklyDelta = toNumberOrNull(weeklyAnalyticsQuery.data?.weightDeltaVsPrevPeriod);
 
   const sparklineData = useMemo(() => {
     const logsByDate = new Map((sparklineLogsQuery.data ?? []).map((log) => [log.date, log]));

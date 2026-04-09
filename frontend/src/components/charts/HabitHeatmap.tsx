@@ -30,17 +30,46 @@ const statusColors: Record<HeatmapPoint['status'], string> = {
   not_expected: '#94a3b8'
 };
 
+const getUtcDateFromIso = (isoDate: string): Date => new Date(`${isoDate}T00:00:00.000Z`);
+
+const isExpectedDay = (habitSummary: HabitWeeklySummary, isoDate: string): boolean => {
+  const { frequencyType, scheduledDays, scheduledDates } = habitSummary;
+  const date = getUtcDateFromIso(isoDate);
+
+  if (
+    frequencyType === 'x_per_week' &&
+    Array.isArray(scheduledDays) &&
+    scheduledDays.length > 0
+  ) {
+    const dayIndex = (date.getUTCDay() + 6) % 7;
+    return scheduledDays.includes(dayIndex);
+  }
+
+  if (
+    (frequencyType === 'x_per_month' || frequencyType === 'monthly') &&
+    Array.isArray(scheduledDates) &&
+    scheduledDates.length > 0
+  ) {
+    return scheduledDates.includes(date.getUTCDate());
+  }
+
+  return true;
+};
+
 const buildHeatmapData = (habitSummary: HabitWeeklySummary, weekDates: string[]): HeatmapPoint[] => {
   const valuesByDate = new Map(habitSummary.dailyValues.map((item) => [item.date, item.value]));
 
   return weekDates.map((date) => {
     const rawValue = valuesByDate.get(date);
     const numericValue = rawValue === null || rawValue === undefined ? null : Number(rawValue);
+    const expected = isExpectedDay(habitSummary, date);
 
     let status: HeatmapPoint['status'] = 'not_expected';
-    if (numericValue !== null && numericValue > 0) {
+    if (!expected) {
+      status = 'not_expected';
+    } else if (numericValue !== null && numericValue > 0) {
       status = 'done';
-    } else if (numericValue !== null) {
+    } else {
       status = 'missed';
     }
 

@@ -25,6 +25,7 @@ type DailyLogFormProps = {
   existingLog: DailyLog | null;
   habits: Habit[];
   habitLogs: HabitLog[];
+  calorieTarget?: number | null;
   isSaving: boolean;
   saveError?: string | null;
   onSubmit: (payload: DailyLogFormSubmitPayload) => Promise<void> | void;
@@ -73,6 +74,7 @@ const DailyLogForm = ({
   existingLog,
   habits,
   habitLogs,
+  calorieTarget = null,
   isSaving,
   saveError,
   onSubmit
@@ -83,6 +85,7 @@ const DailyLogForm = ({
   }, [habitLogs]);
 
   const [fatOpen, setFatOpen] = useState(false);
+  const [additionalNutritionOpen, setAdditionalNutritionOpen] = useState(false);
 
   const [weightKg, setWeightKg] = useState('');
   const [caloriesConsumed, setCaloriesConsumed] = useState('');
@@ -92,6 +95,10 @@ const DailyLogForm = ({
   const [fatSaturatedG, setFatSaturatedG] = useState('');
   const [fatUnsaturatedG, setFatUnsaturatedG] = useState('');
   const [fatTransG, setFatTransG] = useState('');
+  const [fiberG, setFiberG] = useState('');
+  const [sugarsG, setSugarsG] = useState('');
+  const [sodiumMg, setSodiumMg] = useState('');
+  const [calciumMg, setCalciumMg] = useState('');
   const [magnesiumMg, setMagnesiumMg] = useState('');
   const [ironMg, setIronMg] = useState('');
   const [zincMg, setZincMg] = useState('');
@@ -110,6 +117,10 @@ const DailyLogForm = ({
     setFatSaturatedG(toFieldValue(existingLog?.fatSaturatedG));
     setFatUnsaturatedG(toFieldValue(existingLog?.fatUnsaturatedG));
     setFatTransG(toFieldValue(existingLog?.fatTransG));
+    setFiberG(toFieldValue(existingLog?.fiberG));
+    setSugarsG(toFieldValue(existingLog?.sugarsG));
+    setSodiumMg(toFieldValue(existingLog?.sodiumMg));
+    setCalciumMg(toFieldValue(existingLog?.calciumMg));
     setMagnesiumMg(toFieldValue(existingLog?.magnesiumMg));
     setIronMg(toFieldValue(existingLog?.ironMg));
     setZincMg(toFieldValue(existingLog?.zincMg));
@@ -149,6 +160,11 @@ const DailyLogForm = ({
       ? Number(caloriesConsumedNumber) - Number(totalCaloriesBurned)
       : null;
 
+  const remainingCalories =
+    calorieTarget !== null && caloriesConsumedNumber !== undefined
+      ? calorieTarget - caloriesConsumedNumber
+      : null;
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -162,6 +178,10 @@ const DailyLogForm = ({
       fatSaturatedG: parseOptionalInteger(fatSaturatedG),
       fatUnsaturatedG: parseOptionalInteger(fatUnsaturatedG),
       fatTransG: parseOptionalNumber(fatTransG),
+      fiberG: parseOptionalInteger(fiberG),
+      sugarsG: parseOptionalInteger(sugarsG),
+      sodiumMg: parseOptionalInteger(sodiumMg),
+      calciumMg: parseOptionalInteger(calciumMg),
       magnesiumMg: parseOptionalInteger(magnesiumMg),
       ironMg: parseOptionalNumber(ironMg),
       zincMg: parseOptionalNumber(zincMg),
@@ -324,6 +344,55 @@ const DailyLogForm = ({
           </div>
         </Card>
 
+        <Card title="Additional Nutrition">
+          <div className="space-y-3">
+            <button
+              type="button"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center text-sm font-medium text-accent-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+              onClick={() => setAdditionalNutritionOpen((open) => !open)}
+            >
+              {additionalNutritionOpen ? 'Hide' : 'Show'} Additional Nutrition
+            </button>
+
+            {additionalNutritionOpen ? (
+              <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+                <Input
+                  label="Dietary Fiber"
+                  unit="g"
+                  type="number"
+                  min={0}
+                  value={fiberG}
+                  onChange={(event) => setFiberG(event.target.value)}
+                />
+                <Input
+                  label="Sugars"
+                  unit="g"
+                  type="number"
+                  min={0}
+                  value={sugarsG}
+                  onChange={(event) => setSugarsG(event.target.value)}
+                />
+                <Input
+                  label="Sodium"
+                  unit="mg"
+                  type="number"
+                  min={0}
+                  value={sodiumMg}
+                  onChange={(event) => setSodiumMg(event.target.value)}
+                />
+                <Input
+                  label="Calcium"
+                  unit="mg"
+                  type="number"
+                  min={0}
+                  value={calciumMg}
+                  onChange={(event) => setCalciumMg(event.target.value)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </Card>
+
         <Card title="Lifestyle">
           <div className="space-y-3">
             <Input
@@ -390,6 +459,32 @@ const DailyLogForm = ({
             </p>
           </div>
         </div>
+
+        {calorieTarget !== null ? (
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Daily Target</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{calorieTarget} kcal</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Remaining</p>
+                <p
+                  className={cn(
+                    'mt-1 text-lg font-semibold',
+                    remainingCalories === null
+                      ? 'text-slate-700'
+                      : remainingCalories >= 0
+                        ? 'text-success'
+                        : 'text-danger'
+                  )}
+                >
+                  {remainingCalories === null ? '--' : `${remainingCalories} kcal`}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card title="Today's Habits">

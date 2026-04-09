@@ -2,9 +2,12 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import {
+	confirmHabitImportController,
 	confirmCsvImportController,
 	downloadImportTemplate,
 	exportUserDataController,
+	previewHabitDefinitionsController,
+	previewHabitLogsController,
 	previewCsvImportController
 } from '../controllers/importExport';
 import { requireAuth } from '../middleware/auth';
@@ -29,5 +32,8 @@ router.get('/export', exportUserDataController);
 router.get('/import/template', requireAuth, downloadImportTemplate);
 router.post('/import/csv', upload.single('file'), previewCsvImportController);
 router.post('/import/csv/confirm', confirmCsvImportController);
+router.post('/import/habits/definitions/preview', upload.single('file'), previewHabitDefinitionsController);
+router.post('/import/habits/logs/preview', upload.single('file'), previewHabitLogsController);
+router.post('/import/habits/confirm', confirmHabitImportController);
 
 export default router;

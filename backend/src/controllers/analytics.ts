@@ -1,9 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { weeklyAnalyticsQuerySchema } from '../schemas/analytics';
-import { AnalyticsServiceError, getWeeklyAnalytics } from '../services/analytics';
+import { getAnalytics } from '../services/analytics';
 
-export const getWeeklyAnalyticsController = async (
+const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+export const getAnalyticsController = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
@@ -14,17 +15,18 @@ export const getWeeklyAnalyticsController = async (
 			return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
 		}
 
-		const { week } = weeklyAnalyticsQuerySchema.parse(req.query);
-		const data = await getWeeklyAnalytics(userId, week);
-		return res.status(200).json(data);
-	} catch (error) {
-		if (error instanceof AnalyticsServiceError) {
-			return res.status(error.statusCode).json({
-				error: error.message,
-				code: error.code
+		const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
+		const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
+
+		if (!startDate || !endDate || !dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+			return res.status(400).json({
+				error: 'startDate and endDate are required in YYYY-MM-DD format'
 			});
 		}
 
+		const data = await getAnalytics(userId, startDate, endDate);
+		return res.status(200).json(data);
+	} catch (error) {
 		return next(error);
 	}
 };

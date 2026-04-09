@@ -15,12 +15,13 @@ import type {
   UpdateHabitInput,
   HabitLog,
   UpsertHabitLogInput,
-  WeeklyAnalytics,
+  AnalyticsResult,
   DashboardLayoutResponse,
   DashboardWidgetLayout,
   CsvImportPreview,
   CsvImportResult,
-  AuthUser
+  AuthUser,
+  UpdateProfileInput
 } from '../types';
 
 type RequestMetadata = {
@@ -99,7 +100,7 @@ export const authApi = {
 };
 
 export const usersApi = {
-  updateMe: (displayName: string) => api.put<{ user: AuthUser }>('/users/me', { displayName })
+  updateMe: (data: UpdateProfileInput) => api.put<{ user: AuthUser }>('/users/me', data)
 };
 
 export const logsApi = {
@@ -114,6 +115,7 @@ export const habitsApi = {
   list: () => api.get<Habit[]>('/habits'),
   create: (data: CreateHabitInput) => api.post<Habit>('/habits', data),
   update: (id: string, data: UpdateHabitInput) => api.put<Habit>(`/habits/${id}`, data),
+  delete: (id: string) => api.delete(`/habits/${id}`),
   archive: (id: string) => api.patch<Habit>(`/habits/${id}/archive`),
   reorder: (orderedIds: string[]) => api.post<Habit[]>('/habits/reorder', { orderedIds })
 };
@@ -125,7 +127,8 @@ export const habitLogsApi = {
 };
 
 export const analyticsApi = {
-  weekly: (week: string) => api.get<WeeklyAnalytics>('/analytics/weekly', { params: { week } })
+  get: (params: { startDate: string; endDate: string }) =>
+    api.get<AnalyticsResult>('/analytics', { params })
 };
 
 export const dashboardApi = {
@@ -154,7 +157,22 @@ export const importApi = {
     csvBase64?: string;
     csvData?: string;
     conflictResolution?: 'overwrite' | 'skip';
-  }) => api.post<CsvImportResult>('/import-export/import/csv/confirm', data)
+  }) => api.post<CsvImportResult>('/import-export/import/csv/confirm', data),
+  previewHabitDefinitions: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/import-export/import/habits/definitions/preview', form);
+  },
+  previewHabitLogs: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/import-export/import/habits/logs/preview', form);
+  },
+  confirmHabitImport: (data: {
+    definitionsData?: string;
+    logsData?: string;
+    conflictResolutions: { habitName: string; resolution: 'link' | 'create_new' | 'overwrite' }[];
+  }) => api.post('/import-export/import/habits/confirm', data)
 };
 
 export const typedGet = async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {

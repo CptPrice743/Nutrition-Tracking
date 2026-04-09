@@ -12,11 +12,38 @@ export class HabitsServiceError extends Error {
 	}
 }
 
+const parseSerializedSchedule = (value: string | null): number[] | null => {
+	if (!value) {
+		return null;
+	}
+
+	try {
+		const parsed = JSON.parse(value);
+		if (!Array.isArray(parsed)) {
+			return null;
+		}
+
+		if (!parsed.every((entry) => typeof entry === 'number')) {
+			return null;
+		}
+
+		return parsed as number[];
+	} catch {
+		return null;
+	}
+};
+
 export const getHabits = async (userId: string) => {
-	return prisma.habit.findMany({
+	const habits = await prisma.habit.findMany({
 		where: { userId },
 		orderBy: { displayOrder: 'asc' }
 	});
+
+	return habits.map((habit) => ({
+		...habit,
+		scheduledDays: parseSerializedSchedule(habit.scheduledDays),
+		scheduledDates: parseSerializedSchedule(habit.scheduledDates)
+	}));
 };
 
 export const createHabit = async (userId: string, data: HabitCreateInput) => {
@@ -32,6 +59,8 @@ export const createHabit = async (userId: string, data: HabitCreateInput) => {
 		data: {
 			userId,
 			...data,
+			scheduledDays: data.scheduledDays ? JSON.stringify(data.scheduledDays) : undefined,
+			scheduledDates: data.scheduledDates ? JSON.stringify(data.scheduledDates) : undefined,
 			displayOrder: nextDisplayOrder
 		}
 	});
@@ -51,7 +80,11 @@ export const updateHabit = async (userId: string, id: string, data: HabitUpdateI
 
 	return prisma.habit.update({
 		where: { id: existingHabit.id },
-		data
+		data: {
+			...data,
+			scheduledDays: data.scheduledDays ? JSON.stringify(data.scheduledDays) : undefined,
+			scheduledDates: data.scheduledDates ? JSON.stringify(data.scheduledDates) : undefined
+		}
 	});
 };
 
@@ -72,6 +105,21 @@ export const archiveHabit = async (userId: string, id: string) => {
 		data: { isActive: !existingHabit.isActive }
 	});
 };
+
+export async function deleteHabit(userId: string, id: string): Promise<void> {
+	const habit = await prisma.habit.findFirst({
+		where: {
+			id,
+			userId
+		}
+	});
+
+	if (!habit) {
+		throw Object.assign(new Error('Habit not found'), { statusCode: 404 });
+	}
+
+	await prisma.habit.delete({ where: { id } });
+}
 
 export const reorderHabits = async (userId: string, orderedIds: string[]) => {
 	const userHabits = await prisma.habit.findMany({

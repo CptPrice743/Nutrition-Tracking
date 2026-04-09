@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
 	archiveHabitController,
 	createHabitController,
+	deleteHabitController,
 	getHabitsController,
 	reorderHabitsController,
 	updateHabitController
@@ -16,6 +17,7 @@ router.use(requireAuth);
 router.get('/', getHabitsController);
 router.post('/', createHabitController);
 router.put('/:id', updateHabitController);
+router.delete('/:id', deleteHabitController);
 router.patch('/:id/archive', archiveHabitController);
 router.post('/reorder', reorderHabitsController);
 
