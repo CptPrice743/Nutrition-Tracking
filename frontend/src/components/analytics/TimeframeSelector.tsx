@@ -16,8 +16,7 @@ function toDateString(d: Date): string {
 }
 
 function getWeekRange(anchor: Date): { start: Date; end: Date } {
-  // Always Mon-Sun ISO week
-  const day = (anchor.getUTCDay() + 6) % 7; // 0=Mon, 6=Sun
+  const day = (anchor.getUTCDay() + 6) % 7;
   const start = new Date(anchor);
   start.setUTCDate(anchor.getUTCDate() - day);
   const end = new Date(start);
@@ -32,7 +31,7 @@ function getMonthRange(anchor: Date): { start: Date; end: Date } {
 }
 
 function getQuarterRange(anchor: Date): { start: Date; end: Date } {
-  const q = Math.floor(anchor.getUTCMonth() / 3); // 0-based quarter
+  const q = Math.floor(anchor.getUTCMonth() / 3);
   const start = new Date(Date.UTC(anchor.getUTCFullYear(), q * 3, 1));
   const end = new Date(Date.UTC(anchor.getUTCFullYear(), q * 3 + 3, 0));
   return { start, end };
@@ -46,32 +45,20 @@ function getYearRange(anchor: Date): { start: Date; end: Date } {
 
 function getRange(view: ViewType, anchor: Date): { start: Date; end: Date } {
   switch (view) {
-    case 'weekly':
-      return getWeekRange(anchor);
-    case 'monthly':
-      return getMonthRange(anchor);
-    case 'quarterly':
-      return getQuarterRange(anchor);
-    case 'yearly':
-      return getYearRange(anchor);
+    case 'weekly': return getWeekRange(anchor);
+    case 'monthly': return getMonthRange(anchor);
+    case 'quarterly': return getQuarterRange(anchor);
+    case 'yearly': return getYearRange(anchor);
   }
 }
 
 function shiftAnchorBack(view: ViewType, anchor: Date): Date {
   const d = new Date(anchor);
   switch (view) {
-    case 'weekly':
-      d.setUTCDate(d.getUTCDate() - 7);
-      break;
-    case 'monthly':
-      d.setUTCMonth(d.getUTCMonth() - 1);
-      break;
-    case 'quarterly':
-      d.setUTCMonth(d.getUTCMonth() - 3);
-      break;
-    case 'yearly':
-      d.setUTCFullYear(d.getUTCFullYear() - 1);
-      break;
+    case 'weekly': d.setUTCDate(d.getUTCDate() - 7); break;
+    case 'monthly': d.setUTCMonth(d.getUTCMonth() - 1); break;
+    case 'quarterly': d.setUTCMonth(d.getUTCMonth() - 3); break;
+    case 'yearly': d.setUTCFullYear(d.getUTCFullYear() - 1); break;
   }
   return d;
 }
@@ -79,18 +66,10 @@ function shiftAnchorBack(view: ViewType, anchor: Date): Date {
 function shiftAnchorForward(view: ViewType, anchor: Date): Date {
   const d = new Date(anchor);
   switch (view) {
-    case 'weekly':
-      d.setUTCDate(d.getUTCDate() + 7);
-      break;
-    case 'monthly':
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      break;
-    case 'quarterly':
-      d.setUTCMonth(d.getUTCMonth() + 3);
-      break;
-    case 'yearly':
-      d.setUTCFullYear(d.getUTCFullYear() + 1);
-      break;
+    case 'weekly': d.setUTCDate(d.getUTCDate() + 7); break;
+    case 'monthly': d.setUTCMonth(d.getUTCMonth() + 1); break;
+    case 'quarterly': d.setUTCMonth(d.getUTCMonth() + 3); break;
+    case 'yearly': d.setUTCFullYear(d.getUTCFullYear() + 1); break;
   }
   return d;
 }
@@ -99,7 +78,7 @@ function getRangeLabel(view: ViewType, start: Date, end: Date): string {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   switch (view) {
     case 'weekly':
-      return `${start.getUTCDate()} ${months[start.getUTCMonth()]} - ${end.getUTCDate()} ${months[end.getUTCMonth()]} ${end.getUTCFullYear()}`;
+      return `${start.getUTCDate()} ${months[start.getUTCMonth()]} – ${end.getUTCDate()} ${months[end.getUTCMonth()]} ${end.getUTCFullYear()}`;
     case 'monthly':
       return `${months[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
     case 'quarterly': {
@@ -121,67 +100,84 @@ const TimeframeSelector = ({ onRangeChange }: Props): JSX.Element => {
   const rangeLabel = getRangeLabel(view, start, end);
 
   useEffect(() => {
-    const { start: nextStart, end: nextEnd } = getRange(view, anchor);
-    onRangeChange(toDateString(nextStart), toDateString(nextEnd));
+    const { start: s, end: e } = getRange(view, anchor);
+    onRangeChange(toDateString(s), toDateString(e));
   }, [view, anchor]);
 
-  function handleViewChange(newView: ViewType) {
-    setView(newView);
-    setAnchor(getUTCToday()); // reset anchor to today when switching views
-  }
+  function handleViewChange(v: ViewType) { setView(v); setAnchor(getUTCToday()); }
+  function handlePrev() { setAnchor((p) => shiftAnchorBack(view, p)); }
+  function handleNext() { if (!isNextDisabled) setAnchor((p) => shiftAnchorForward(view, p)); }
 
-  function handlePrev() {
-    setAnchor((prev) => shiftAnchorBack(view, prev));
-  }
-
-  function handleNext() {
-    if (!isNextDisabled) {
-      setAnchor((prev) => shiftAnchorForward(view, prev));
-    }
-  }
+  const views: ViewType[] = ['weekly', 'monthly', 'quarterly'];
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-3 flex-wrap">
-        <select
-          value={view}
-          onChange={(e) => handleViewChange(e.target.value as ViewType)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {/* Pill segmented control */}
+      <div
+        style={{
+          display: 'flex',
+          background: 'var(--surface-container-low)',
+          borderRadius: 'var(--radius-md)',
+          padding: 3,
+          gap: 2
+        }}
+      >
+        {views.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => handleViewChange(v)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              background: view === v ? 'var(--primary)' : 'transparent',
+              color: view === v ? '#ffffff' : 'var(--text-secondary)',
+              transition: 'background var(--transition), color var(--transition)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Arrow nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ padding: '8px 12px', minHeight: 36 }}
+          onClick={handlePrev}
+          aria-label="Previous period"
         >
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handlePrev}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-accent-500"
-            aria-label="Previous period"
-            type="button"
-          >
-            {'\u2039'}
-          </button>
-
-          <span className="min-w-[180px] text-center text-sm font-medium text-gray-700 px-2">
-            {rangeLabel}
-          </span>
-
-          <button
-            onClick={handleNext}
-            disabled={isNextDisabled}
-            className={`rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-accent-500 ${
-              isNextDisabled
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'hover:bg-gray-50 text-gray-700'
-            }`}
-            aria-label="Next period"
-            type="button"
-          >
-            {'\u203A'}
-          </button>
-        </div>
+          ‹
+        </button>
+        <span
+          style={{
+            minWidth: 160,
+            textAlign: 'center',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            padding: '0 4px'
+          }}
+        >
+          {rangeLabel}
+        </span>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ padding: '8px 12px', minHeight: 36, opacity: isNextDisabled ? 0.4 : 1 }}
+          onClick={handleNext}
+          disabled={isNextDisabled}
+          aria-label="Next period"
+        >
+          ›
+        </button>
       </div>
     </div>
   );

@@ -1,13 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-
 import FatInspectorChart from '../charts/FatInspectorChart';
 import MacroConsistencyChart from '../charts/MacroConsistencyChart';
 import WeightNetCaloriesChart from '../charts/WeightNetCaloriesChart';
-import Card from '../ui/Card';
-import ProgressBar from '../ui/ProgressBar';
 import Skeleton from '../ui/Skeleton';
 import type { AnalyticsResult } from '../../types';
-import { useAuth } from '../../hooks/useAuth';
 
 type Props = {
   data: AnalyticsResult | undefined;
@@ -16,225 +11,119 @@ type Props = {
   endDate: string;
 };
 
-type NutrientRow = {
-  label: string;
-  average: number | null;
-  rda: number;
-  unit: string;
+const toNum = (v: number | null | undefined): number | null => {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
 };
 
-const toNumberOrNull = (value: number | null | undefined): number | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const numeric = Number(value);
-  return Number.isNaN(numeric) ? null : numeric;
-};
+const fmt = (v: number | null | undefined, d = 1): string =>
+  v == null ? '–' : Number(v).toFixed(d);
 
-const formatNumber = (value: number | null | undefined, decimals = 1): string => {
-  const numeric = toNumberOrNull(value);
-  return numeric === null ? '-' : numeric.toFixed(decimals);
-};
-
-const getProgressColor = (percent: number): 'success' | 'warning' | 'danger' => {
-  if (percent >= 80) {
-    return 'success';
+const Scorecard = ({
+  label, value, sub, hero, subColor
+}: {
+  label: string; value: string; sub?: string; hero?: boolean; subColor?: string;
+}): JSX.Element => {
+  if (hero) {
+    return (
+      <div className="card-hero" style={{ padding: 16 }}>
+        <div className="overline" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>{label}</div>
+        <div className="display" style={{ color: '#ffffff', lineHeight: 1.1, marginBottom: 4 }}>{value}</div>
+        {sub && (
+          <div style={{ fontSize: 12, color: subColor ?? 'rgba(255,255,255,0.5)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {sub}
+          </div>
+        )}
+      </div>
+    );
   }
-  if (percent >= 50) {
-    return 'warning';
-  }
-  return 'danger';
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div className="overline" style={{ marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 12, color: subColor ?? 'var(--text-tertiary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const NutritionTab = ({ data, isLoading, startDate, endDate }: Props): JSX.Element => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+  const avgNet = toNum(data?.avgNetCalories);
+  const periodDelta = toNum(data?.totalPeriodDeficitSurplus);
+  const avgWeight = toNum(data?.avgWeightKg);
+  const weightDelta = toNum(data?.weightDeltaVsPrevPeriod);
+  const estimatedTDEE = toNum(data?.estimatedTDEE);
+  const avgWater = toNum(data?.avgWaterLitres);
 
-  const calorieTarget = toNumberOrNull(user?.calorieTarget);
-  const avgNetCalories = toNumberOrNull(data?.avgNetCalories);
-  const periodDelta = toNumberOrNull(data?.totalPeriodDeficitSurplus);
-  const avgWeightKg = toNumberOrNull(data?.avgWeightKg);
-  const weightDelta = toNumberOrNull(data?.weightDeltaVsPrevPeriod);
-  const estimatedTDEE = toNumberOrNull(data?.estimatedTDEE);
-  const baselineTDEE = toNumberOrNull(data?.baselineTDEE);
-  const baselineDelta =
-    estimatedTDEE !== null && baselineTDEE !== null ? estimatedTDEE - baselineTDEE : null;
-
-  const normalDays = Number(data?.normalDays ?? 0);
-  const restaurantDays = Number(data?.restaurantDays ?? 0);
-  const dayTotal = Math.max(normalDays + restaurantDays, 1);
-  const normalPercent = (normalDays / dayTotal) * 100;
-
-  const nutrientRows: NutrientRow[] = [
-    { label: 'Fiber', average: toNumberOrNull(data?.avgFiberG), rda: 30, unit: 'g' },
-    { label: 'Sodium', average: toNumberOrNull(data?.avgSodiumMg), rda: 2300, unit: 'mg' },
-    { label: 'Calcium', average: toNumberOrNull(data?.avgCalciumMg), rda: 1000, unit: 'mg' },
-    { label: 'Iron', average: toNumberOrNull(data?.avgIronMg), rda: 18, unit: 'mg' },
-    { label: 'Zinc', average: toNumberOrNull(data?.avgZincMg), rda: 11, unit: 'mg' },
-    { label: 'Magnesium', average: toNumberOrNull(data?.avgMagnesiumMg), rda: 400, unit: 'mg' }
+  const nutrientRows = [
+    { label: 'Fiber', avg: toNum(data?.avgFiberG), rda: 35, unit: 'g' },
+    { label: 'Sodium', avg: toNum(data?.avgSodiumMg), rda: 2300, unit: 'mg' },
+    { label: 'Calcium', avg: toNum(data?.avgCalciumMg), rda: 1000, unit: 'mg' },
+    { label: 'Iron', avg: toNum(data?.avgIronMg), rda: 18, unit: 'mg' },
+    { label: 'Magnesium', avg: toNum(data?.avgMagnesiumMg), rda: 400, unit: 'mg' },
+    { label: 'Zinc', avg: toNum(data?.avgZincMg), rda: 11, unit: 'mg' }
   ];
 
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-gray-500">
-        Period: {startDate} to {endDate}
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Scorecard row */}
+      <div
+        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
+        className="md:!grid-cols-5"
+      >
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="card" style={{ padding: 16, height: 100 }}>
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          ))
+        ) : (
+          <>
+            <Scorecard
+              hero
+              label="Avg Net Calories"
+              value={avgNet !== null ? `${Math.round(avgNet).toLocaleString()}` : '–'}
+              sub={avgNet !== null ? '↗ kcal/day' : undefined}
+            />
+            <Scorecard
+              label="Period Deficit"
+              value={periodDelta !== null ? `${periodDelta < 0 ? '' : '+'}${Math.round(periodDelta).toLocaleString()}` : '–'}
+              sub="kcal total"
+            />
+            <Scorecard
+              label="Avg Weight"
+              value={avgWeight !== null ? `${avgWeight.toFixed(1)} kg` : '–'}
+              sub={weightDelta !== null
+                ? `${weightDelta <= 0 ? '↙' : '↗'} ${Math.abs(weightDelta).toFixed(1)}kg`
+                : undefined}
+              subColor={weightDelta !== null ? (weightDelta <= 0 ? 'var(--success-text)' : 'var(--danger-text)') : undefined}
+            />
+            <Scorecard
+              label="Est. TDEE"
+              value={estimatedTDEE !== null ? `${Math.round(estimatedTDEE).toLocaleString()}` : '–'}
+              sub="kcal/day"
+            />
+            <Scorecard
+              label="Avg Water"
+              value={avgWater !== null ? `${avgWater.toFixed(1)} L` : '–'}
+              sub="✓ Daily Goal"
+              subColor="var(--success-text)"
+            />
+          </>
+        )}
+      </div>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Card title="Avg Net Calories">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p
-                className={`text-2xl font-semibold ${
-                  calorieTarget === null || avgNetCalories === null
-                    ? 'text-gray-700'
-                    : avgNetCalories < calorieTarget
-                      ? 'text-success'
-                      : 'text-danger'
-                }`}
-              >
-                {avgNetCalories === null ? '-' : `${avgNetCalories.toFixed(1)} kcal`}
-              </p>
-              {calorieTarget !== null ? (
-                <p className="mt-2 text-xs text-gray-500">Target: {calorieTarget.toFixed(0)} kcal</p>
-              ) : null}
-            </>
-          )}
-        </Card>
-
-        <Card title="Period Deficit/Surplus">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p
-                className={`text-2xl font-semibold ${
-                  periodDelta === null ? 'text-gray-700' : periodDelta > 0 ? 'text-danger' : 'text-success'
-                }`}
-              >
-                {periodDelta === null
-                  ? '-'
-                  : `${periodDelta > 0 ? '+' : '-'}${Math.abs(periodDelta).toFixed(0)} kcal`}
-              </p>
-              <p className="mt-2 text-xs text-gray-500">Total period</p>
-            </>
-          )}
-        </Card>
-
-        <Card title="Avg Weight & Delta">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {avgWeightKg === null ? '-' : `${avgWeightKg.toFixed(2)} kg`}
-              </p>
-              <p
-                className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                  weightDelta === null
-                    ? 'bg-gray-100 text-gray-500'
-                    : weightDelta > 0
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-emerald-100 text-emerald-700'
-                }`}
-              >
-                {weightDelta === null
-                  ? '-'
-                  : `${weightDelta > 0 ? '▲ +' : '▼ -'}${Math.abs(weightDelta).toFixed(1)} kg`}
-              </p>
-            </>
-          )}
-        </Card>
-
-        <Card title="Estimated TDEE">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {estimatedTDEE === null ? '-' : `${estimatedTDEE.toFixed(0)} kcal`}
-              </p>
-              <p className="mt-2 text-xs text-gray-500">This period</p>
-            </>
-          )}
-        </Card>
-
-        <Card title="Baseline TDEE">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {baselineTDEE === null ? '-' : `${baselineTDEE.toFixed(0)} kcal`}
-              </p>
-              {baselineTDEE === null ? (
-                <button
-                  type="button"
-                  className="mt-2 text-sm text-accent-600 hover:underline"
-                  onClick={() => navigate('/settings')}
-                >
-                  Set up -&gt;
-                </button>
-              ) : null}
-            </>
-          )}
-        </Card>
-
-        <Card title="vs. Baseline">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p
-                className={`text-2xl font-semibold ${
-                  baselineDelta === null
-                    ? 'text-gray-700'
-                    : baselineDelta > 0
-                      ? 'text-danger'
-                      : 'text-success'
-                }`}
-              >
-                {baselineDelta === null
-                  ? '-'
-                  : `${baselineDelta > 0 ? '+' : '-'}${Math.abs(baselineDelta).toFixed(0)} kcal`}
-              </p>
-              <p className="mt-2 text-xs text-gray-500">Actual vs. Baseline</p>
-            </>
-          )}
-        </Card>
-
-        <Card title="Day Type Ratio">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {normalDays}n / {restaurantDays}r
-              </p>
-              <div className="mt-3">
-                <ProgressBar value={normalPercent} colorScheme="success" />
-              </div>
-            </>
-          )}
-        </Card>
-
-        <Card title="Avg Water">
-          {isLoading ? (
-            <Skeleton className="h-8 w-24" />
-          ) : (
-            <p className="text-2xl font-semibold text-gray-900">
-              {data?.avgWaterLitres === null || data?.avgWaterLitres === undefined
-                ? '-'
-                : `${Number(data.avgWaterLitres).toFixed(1)} L`}
-            </p>
-          )}
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <Card title="Weight vs. Net Calories">
+      {/* Main charts row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="md:!grid-cols-[3fr_2fr]">
+        <div className="card">
+          <h3 className="title" style={{ marginBottom: 16 }}>Weight vs. Net Energy</h3>
           {data && !isLoading ? (
             <WeightNetCaloriesChart
               dailyLogs={data.dailyLogSummaries}
@@ -243,52 +132,59 @@ const NutritionTab = ({ data, isLoading, startDate, endDate }: Props): JSX.Eleme
           ) : (
             <Skeleton className="h-[300px] w-full" />
           )}
-        </Card>
+        </div>
 
-        <Card title="Macro Consistency">
+        <div className="card">
+          <h3 className="title" style={{ marginBottom: 16 }}>Macro Consistency</h3>
           {data && !isLoading ? (
             <MacroConsistencyChart dailyLogs={data.dailyLogSummaries} />
           ) : (
             <Skeleton className="h-[300px] w-full" />
           )}
-        </Card>
+        </div>
+      </div>
 
-        <Card title="Fat Inspector">
+      {/* Second chart row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="md:!grid-cols-2">
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h3 className="title">Fat Inspector</h3>
+            <span className="overline" style={{ background: 'var(--surface-container-low)', padding: '3px 10px', borderRadius: 'var(--radius-full)' }}>Omega Ratio 1:4</span>
+          </div>
           {data && !isLoading ? (
             <FatInspectorChart dailyLogs={data.dailyLogSummaries} />
           ) : (
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-[240px] w-full" />
           )}
-        </Card>
-      </section>
+        </div>
 
-      <Card title="Daily Averages vs. Target">
-        {isLoading ? (
-          <Skeleton className="h-52 w-full" />
-        ) : (
-          <div className="space-y-4">
-            {nutrientRows.map((row) => {
-              const average = toNumberOrNull(row.average);
-              const progress = average === null ? 0 : Math.min((average / row.rda) * 100, 100);
-              const colorScheme = average === null ? 'neutral' : getProgressColor(progress);
-
-              return (
-                <div key={row.label} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">{row.label}</span>
-                    <span className="text-gray-500">
-                      {average === null
-                        ? `- / ${row.rda} ${row.unit}`
-                        : `${formatNumber(average, 1)} / ${row.rda} ${row.unit}`}
-                    </span>
+        <div className="card">
+          <h3 className="title" style={{ marginBottom: 16 }}>Micronutrient Progress</h3>
+          {isLoading ? (
+            <Skeleton className="h-[240px] w-full" />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px' }}>
+              {nutrientRows.map((row) => {
+                const pct = row.avg !== null ? Math.min(100, (row.avg / row.rda) * 100) : 0;
+                const barColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+                return (
+                  <div key={row.label}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{row.label}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        {row.avg !== null ? `${fmt(row.avg, 0)}${row.unit}` : '–'} / {row.rda}{row.unit}
+                      </span>
+                    </div>
+                    <div className="progress-track" style={{ height: 4 }}>
+                      <div className="progress-fill" style={{ width: `${pct}%`, background: barColor }} />
+                    </div>
                   </div>
-                  <ProgressBar value={progress} colorScheme={colorScheme} />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

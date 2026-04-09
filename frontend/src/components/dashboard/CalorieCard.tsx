@@ -1,68 +1,100 @@
-import Card from '../ui/Card';
 import Skeleton from '../ui/Skeleton';
 
 export type CalorieCardProps = {
   consumed: number | null;
   target?: number;
+  protein?: number | null;
+  proteinGoal?: number;
+  carbs?: number | null;
+  carbsGoal?: number;
+  fat?: number | null;
+  fatGoal?: number;
   isLoading?: boolean;
 };
 
-const RING_RADIUS = 34;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-const CalorieCard = ({ consumed, target = 2000, isLoading = false }: CalorieCardProps): JSX.Element => {
+const CalorieCard = ({
+  consumed,
+  target = 2000,
+  protein,
+  proteinGoal = 160,
+  carbs,
+  carbsGoal = 200,
+  fat,
+  fatGoal = 65,
+  isLoading = false
+}: CalorieCardProps): JSX.Element => {
   if (isLoading) {
     return (
-      <Card title="Calories Today">
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-24 rounded-full" />
-          <Skeleton className="h-4 w-36" />
+      <div className="card">
+        <Skeleton className="h-6 w-32 mb-3" />
+        <Skeleton className="h-3 w-full mb-2" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
         </div>
-      </Card>
+      </div>
     );
   }
 
-  const numericConsumed = consumed === null ? null : Math.max(0, Number(consumed));
-  const progress = numericConsumed === null ? 0 : Math.min(100, (numericConsumed / target) * 100);
-  const dashLength = (progress / 100) * RING_CIRCUMFERENCE;
+  const numericConsumed = consumed === null ? 0 : Math.max(0, Number(consumed));
+  const progress = target > 0 ? Math.min(100, (numericConsumed / target) * 100) : 0;
+  const pct = Math.round(progress);
+
+  const pillVariant = pct >= 100 ? 'danger' : pct >= 80 ? 'info' : 'info';
+
+  const macros = [
+    { label: 'PROTEIN', value: protein, goal: proteinGoal, color: '#2563eb' },
+    { label: 'CARBS', value: carbs, goal: carbsGoal, color: '#f59e0b' },
+    { label: 'FAT', value: fat, goal: fatGoal, color: '#ef4444' }
+  ];
 
   return (
-    <Card title="Calories Today">
-      <div className="flex items-center gap-4">
-        <div className="relative h-24 w-24">
-          <svg viewBox="0 0 84 84" className="h-24 w-24 -rotate-90">
-            <circle
-              cx="42"
-              cy="42"
-              r={RING_RADIUS}
-              fill="none"
-              strokeWidth="8"
-              className="stroke-slate-200"
-            />
-            <circle
-              cx="42"
-              cy="42"
-              r={RING_RADIUS}
-              fill="none"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={`${dashLength} ${RING_CIRCUMFERENCE}`}
-              className={numericConsumed !== null && numericConsumed > target ? 'stroke-danger' : 'stroke-accent-600'}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-900">
-            {numericConsumed === null ? '--' : `${Math.round(progress)}%`}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xl font-semibold text-slate-900">
-            {numericConsumed === null ? '--' : `${numericConsumed.toFixed(0)} kcal`}
-          </p>
-          <p className="text-sm text-slate-500">Target: {target} kcal</p>
-        </div>
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <span className="title">Calories Today</span>
+        <span className={`pill pill-${pillVariant}`}>{pct}% reached</span>
       </div>
-    </Card>
+
+      {/* Progress bar */}
+      <div className="progress-track" style={{ height: 6, marginBottom: 16 }}>
+        <div
+          className="progress-fill"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Macro chips */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        {macros.map((m) => (
+          <div
+            key={m.label}
+            style={{
+              background: 'var(--surface-container-low)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '10px 8px',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
+              <span className="overline" style={{ fontSize: 9 }}>{m.label}</span>
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: m.color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+              {m.value !== null && m.value !== undefined ? Math.round(Number(m.value)) : '--'}
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400 }}>g</span>
+            </div>
+            <div className="overline" style={{ fontSize: 9, marginTop: 3 }}>Goal: {m.goal}g</div>
+          </div>
+        ))}
+      </div>
+
+      {consumed === null && (
+        <p style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13, marginTop: 8 }}>
+          No intake logged yet
+        </p>
+      )}
+    </div>
   );
 };
 

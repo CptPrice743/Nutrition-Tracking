@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -520,11 +520,17 @@ const SettingsPage = (): JSX.Element => {
     setSelectedPreset(deficitKcal);
   };
 
-  const unitToggleButtonClass = (selected: boolean): string => {
-    return selected
-      ? 'bg-accent-500 text-white rounded-full px-3 py-1 text-sm'
-      : 'bg-gray-100 text-gray-500 rounded-full px-3 py-1 text-sm hover:bg-gray-200';
-  };
+  const unitToggleButtonClass = (selected: boolean): React.CSSProperties => ({
+    padding: '4px 12px',
+    borderRadius: 'var(--radius-full)',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    background: selected ? 'var(--primary)' : 'var(--surface-container-low)',
+    color: selected ? '#ffffff' : 'var(--text-secondary)',
+    transition: 'background var(--transition), color var(--transition)'
+  });
 
   const handleHeightUnitChange = (nextUnit: HeightUnit) => {
     if (nextUnit === heightUnit) {
@@ -955,47 +961,105 @@ const SettingsPage = (): JSX.Element => {
     return unresolvedFromLogs.filter((name) => !incomingHabits.has(name));
   }, [habitDefinitionsPreview?.newHabits, habitLogsPreview?.unresolvedHabits]);
 
+  const bmr = canShowWizard
+    ? calculateBMR({
+        gender: profile.gender as 'male' | 'female' | 'other',
+        weightKg: weightKgForCalc!,
+        heightCm: heightCmForCalc!,
+        age: Number(profile.age)
+      })
+    : null;
+
+  const initials = (profile.displayName || user?.email || '?')
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
-    <section className="space-y-4">
+    <div className="page-container">
+      {/* Toast */}
       {profileToast ? (
-        <div className="fixed right-4 top-4 z-40 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-medium text-success">
-          {profileToast}
+        <div style={{
+          position: 'fixed', right: 20, top: 20, zIndex: 50,
+          background: 'var(--success-bg)', color: 'var(--success-text)',
+          border: '1px solid var(--success)',
+          borderRadius: 'var(--radius-lg)', padding: '8px 16px',
+          fontSize: 14, fontWeight: 600
+        }}>
+          ✓ {profileToast}
         </div>
       ) : null}
 
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <span className="page-eyebrow">Configuration</span>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <h1 className="headline">Settings</h1>
+          <Button
+            type="button"
+            onClick={() => { void handleSaveProfile(); }}
+            loading={updateProfileMutation.isPending}
+          >
+            Save Profile
+          </Button>
+        </div>
+      </div>
 
-      <Card title="Account">
-        <div className="space-y-4">
-          <Input
-            label="Display Name"
-            value={profile.displayName}
-            onChange={(event) => {
-              setField('displayName', event.target.value);
-              setProfileMessage(null);
-            }}
-            placeholder="Enter display name"
-          />
+      {/* Two-column layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }} className="md:!grid-cols-[3fr_2fr]">
 
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Profile &amp; Biometrics</h3>
-            <div className="grid gap-3 md:grid-cols-2">
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Profile card */}
+          <div className="card">
+            <h2 className="title" style={{ marginBottom: 20 }}>Profile</h2>
+
+            {/* Avatar + name row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'var(--primary)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, fontWeight: 700, flexShrink: 0
+              }}>
+                {initials}
+              </div>
+              <div style={{ flex: 1 }}>
+                <Input
+                  label="Display Name"
+                  value={profile.displayName}
+                  onChange={(event) => {
+                    setField('displayName', event.target.value);
+                    setProfileMessage(null);
+                  }}
+                  placeholder="Enter display name"
+                />
+              </div>
+            </div>
+
+            {/* Fields grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* Age */}
               <Input
                 label="Age"
                 type="number"
                 min={11}
                 max={120}
-                unit="years"
+                unit="yrs"
                 value={profile.age}
                 onChange={(event) => {
                   setField('age', event.target.value);
                   setProfileErrors((current) => ({ ...current, age: undefined }));
                   setProfileMessage(null);
                 }}
-                placeholder="e.g. 28"
+                placeholder="28"
                 error={profileErrors.age}
               />
 
+              {/* Weight with unit toggle */}
               <Input
                 label="Weight"
                 type="number"
@@ -1004,117 +1068,19 @@ const SettingsPage = (): JSX.Element => {
                 unit={weightUnit === 'kg' ? 'kg' : 'lbs'}
                 value={weightUnit === 'kg' ? profile.weightKg : profile.weightLbs}
                 onChange={(event) => {
-                  if (weightUnit === 'kg') {
-                    handleWeightKgChange(event.target.value);
-                    return;
-                  }
+                  if (weightUnit === 'kg') { handleWeightKgChange(event.target.value); return; }
                   handleWeightLbsChange(event.target.value);
                 }}
-                placeholder={weightUnit === 'kg' ? 'e.g. 72.5' : 'e.g. 160'}
+                placeholder={weightUnit === 'kg' ? '72.5' : '160'}
                 labelAction={
-                  <div className="inline-flex gap-1">
-                    <button
-                      type="button"
-                      className={unitToggleButtonClass(weightUnit === 'kg')}
-                      onClick={() => handleWeightUnitChange('kg')}
-                    >
-                      kg
-                    </button>
-                    <button
-                      type="button"
-                      className={unitToggleButtonClass(weightUnit === 'lbs')}
-                      onClick={() => handleWeightUnitChange('lbs')}
-                    >
-                      lbs
-                    </button>
+                  <div style={{ display: 'inline-flex', gap: 4 }}>
+                    <button type="button" style={unitToggleButtonClass(weightUnit === 'kg')} onClick={() => handleWeightUnitChange('kg')}>kg</button>
+                    <button type="button" style={unitToggleButtonClass(weightUnit === 'lbs')} onClick={() => handleWeightUnitChange('lbs')}>lbs</button>
                   </div>
                 }
               />
 
-              {heightUnit === 'cm' ? (
-                <Input
-                  label="Height"
-                  type="number"
-                  min={100}
-                  max={250}
-                  step="0.1"
-                  unit="cm"
-                  value={profile.heightCm}
-                  onChange={(event) => {
-                    handleHeightCmChange(event.target.value);
-                  }}
-                  placeholder="e.g. 175"
-                  error={profileErrors.heightCm}
-                  labelAction={
-                    <div className="inline-flex gap-1">
-                      <button
-                        type="button"
-                        className={unitToggleButtonClass(heightUnit === 'cm')}
-                        onClick={() => handleHeightUnitChange('cm')}
-                      >
-                        cm
-                      </button>
-                      <button
-                        type="button"
-                        className={unitToggleButtonClass(false)}
-                        onClick={() => handleHeightUnitChange('ftin')}
-                      >
-                        ft/in
-                      </button>
-                    </div>
-                  }
-                />
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-sm font-medium text-slate-700">Height</label>
-                    <div className="inline-flex gap-1">
-                      <button
-                        type="button"
-                        className={unitToggleButtonClass(false)}
-                        onClick={() => handleHeightUnitChange('cm')}
-                      >
-                        cm
-                      </button>
-                      <button
-                        type="button"
-                        className={unitToggleButtonClass(true)}
-                        onClick={() => handleHeightUnitChange('ftin')}
-                      >
-                        ft/in
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      label="Feet"
-                      type="number"
-                      min={3}
-                      max={8}
-                      step="1"
-                      value={profile.heightFt}
-                      onChange={(event) => {
-                        handleHeightFeetChange(event.target.value);
-                      }}
-                      placeholder="5"
-                    />
-                    <Input
-                      label="Inches"
-                      type="number"
-                      min={0}
-                      max={11}
-                      step="0.5"
-                      value={profile.heightIn}
-                      onChange={(event) => {
-                        handleHeightInchesChange(event.target.value);
-                      }}
-                      placeholder="9"
-                    />
-                  </div>
-                  {profileErrors.heightCm ? <p className="text-sm text-danger">{profileErrors.heightCm}</p> : null}
-                </div>
-              )}
-
+              {/* Gender */}
               <Select
                 label="Gender"
                 options={GENDER_OPTIONS}
@@ -1125,666 +1091,644 @@ const SettingsPage = (): JSX.Element => {
                 }}
               />
 
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-sm font-medium text-slate-700">Activity Level</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {LIFESTYLE_OPTIONS.map((option) => (
+              {/* Height with unit toggle */}
+              {heightUnit === 'cm' ? (
+                <Input
+                  label="Height"
+                  type="number"
+                  min={100}
+                  max={250}
+                  step="0.1"
+                  unit="cm"
+                  value={profile.heightCm}
+                  onChange={(event) => { handleHeightCmChange(event.target.value); }}
+                  placeholder="175"
+                  error={profileErrors.heightCm}
+                  labelAction={
+                    <div style={{ display: 'inline-flex', gap: 4 }}>
+                      <button type="button" style={unitToggleButtonClass(true)} onClick={() => handleHeightUnitChange('cm')}>cm</button>
+                      <button type="button" style={unitToggleButtonClass(false)} onClick={() => handleHeightUnitChange('ftin')}>ft/in</button>
+                    </div>
+                  }
+                />
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <label className="field-label" style={{ margin: 0 }}>Height</label>
+                    <div style={{ display: 'inline-flex', gap: 4 }}>
+                      <button type="button" style={unitToggleButtonClass(false)} onClick={() => handleHeightUnitChange('cm')}>cm</button>
+                      <button type="button" style={unitToggleButtonClass(true)} onClick={() => handleHeightUnitChange('ftin')}>ft/in</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <Input
+                      label="Feet"
+                      type="number"
+                      min={3}
+                      max={8}
+                      step="1"
+                      value={profile.heightFt}
+                      onChange={(event) => { handleHeightFeetChange(event.target.value); }}
+                      placeholder="5"
+                    />
+                    <Input
+                      label="Inches"
+                      type="number"
+                      min={0}
+                      max={11}
+                      step="0.5"
+                      value={profile.heightIn}
+                      onChange={(event) => { handleHeightInchesChange(event.target.value); }}
+                      placeholder="9"
+                    />
+                  </div>
+                  {profileErrors.heightCm ? (
+                    <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{profileErrors.heightCm}</p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* Activity Level */}
+            <div style={{ marginTop: 16 }}>
+              <label className="field-label">Activity Level</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, marginTop: 6 }}>
+                {LIFESTYLE_OPTIONS.map((option) => {
+                  const isActive = profile.activityLevel === option.value;
+                  return (
                     <button
                       type="button"
                       key={option.value}
                       onClick={() => setField('activityLevel', option.value)}
-                      className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                        profile.activityLevel === option.value
-                          ? 'border-accent-500 bg-accent-50'
-                          : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                      }`}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-lg)',
+                        border: `2px solid ${isActive ? 'var(--primary)' : 'var(--surface-container-low)'}`,
+                        background: isActive ? 'var(--primary-dim)' : 'var(--surface-container)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'border-color var(--transition), background var(--transition)'
+                      }}
                     >
-                      <p className="font-semibold text-gray-800 text-sm">{option.label}</p>
-                      <p className="text-xs text-gray-500 mt-1">{option.description}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--primary)' : 'var(--text-primary)', marginBottom: 2 }}>{option.label}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.3 }}>{option.description}</p>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
+
+            {profileMessage ? (
+              <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 12 }}>{profileMessage}</p>
+            ) : null}
           </div>
 
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Calorie Target</h3>
+          {/* Calorie Target hero card */}
+          <div className="card-hero" style={{ padding: 24 }}>
+            <div className="overline" style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>Daily Calorie Target</div>
+            <div className="display" style={{ color: '#fff', lineHeight: 1, marginBottom: 4 }}>
+              {profile.calorieTarget !== '' ? Number(profile.calorieTarget).toLocaleString() : '–'}
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>kcal / day</div>
 
-            <Input
-              label="Custom Daily Calorie Target"
-              type="number"
-              min={500}
-              max={10000}
-              unit="kcal/day"
-              value={profile.calorieTarget}
-              onChange={(event) => {
-                setField('calorieTarget', event.target.value);
-                setSelectedPreset(null);
-              }}
-              placeholder="e.g. 1800"
-            />
-
+            {/* Warnings */}
             {showSurplusWarning ? (
-              <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-sm text-red-600">
-                Your target is above your maintenance calories. This is a caloric surplus and will likely result in weight gain over time.
+              <div style={{
+                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                color: '#fca5a5', marginBottom: 16
+              }}>
+                ↑ Target is above maintenance — caloric surplus, expect weight gain.
               </div>
             ) : showAggressiveWarning ? (
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
-                This is a heavy cut. Make sure you're keeping protein high to preserve muscle.
+              <div style={{
+                background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)',
+                borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                color: '#fcd34d', marginBottom: 16
+              }}>
+                ⚡ Aggressive cut. Keep protein high to preserve muscle.
               </div>
             ) : null}
 
-            {canShowWizard ? (
-              <div className="border-t border-slate-200 pt-4">
-                <h4 className="text-sm font-semibold text-slate-900">Preset Targets</h4>
-
-                <div className="mt-3 space-y-4">
-                  {maintenance !== null ? (
-                    <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
-                      <p className="text-sm font-medium text-accent-800">Your estimated maintenance: {maintenance} kcal/day</p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        Based on your lifestyle only - exercise calories are added on top via habits.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {maintenance !== null ? (
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                      {DEFICIT_PRESETS.map((preset) => {
-                        const presetTarget = maintenance - preset.deficitKcal;
-                        const isSelected = selectedPreset === preset.deficitKcal;
-
-                        return (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            className={`rounded-xl border p-3 text-left transition ${
-                              isSelected
-                                ? 'border-accent-500 bg-accent-50'
-                                : 'border-slate-200 bg-white hover:border-slate-300'
-                            }`}
-                            onClick={() => {
-                              handlePresetSelect(preset.deficitKcal);
-                            }}
-                          >
-                            <p className="font-semibold text-slate-900">{preset.label}</p>
-                            <p className="mt-1 text-sm text-slate-600">~{preset.weeklyLossKg} kg/week loss</p>
-                            <p className="mt-1 text-sm text-slate-700">Target: {presetTarget} kcal/day</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
+            {/* Maintenance + BMR stats */}
+            {canShowWizard && maintenance !== null ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 'var(--radius-md)', padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Maintenance</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{maintenance.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>kcal/day</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 'var(--radius-md)', padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>BMR</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{bmr !== null ? Math.round(bmr).toLocaleString() : '–'}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>kcal/day</div>
                 </div>
               </div>
-            ) : (
-              <div className="border-t border-slate-200 pt-4">
-                <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 text-sm text-blue-700">
-                  Fill in your age, gender, height, weight, and activity level above to unlock preset targets.
-                </div>
+            ) : !canShowWizard ? (
+              <div style={{
+                background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.3)',
+                borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                color: 'rgba(147,197,253,0.9)', marginBottom: 16
+              }}>
+                Fill in age, gender, height, weight &amp; activity level to unlock preset targets.
               </div>
-            )}
-          </div>
+            ) : null}
 
-          <Input label="Email" value={user?.email ?? ''} readOnly />
+            {/* Preset buttons */}
+            {canShowWizard && maintenance !== null ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 20 }} className="md:!grid-cols-4">
+                {DEFICIT_PRESETS.map((preset) => {
+                  const presetTarget = maintenance - preset.deficitKcal;
+                  const isSelected = selectedPreset === preset.deficitKcal;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => { handlePresetSelect(preset.deficitKcal); }}
+                      style={{
+                        padding: '10px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        border: `2px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.12)'}`,
+                        background: isSelected ? 'rgba(37,99,235,0.25)' : 'rgba(255,255,255,0.06)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'border-color var(--transition), background var(--transition)'
+                      }}
+                    >
+                      <p style={{ fontSize: 12, fontWeight: 700, color: isSelected ? 'var(--primary-light)' : 'rgba(255,255,255,0.9)', marginBottom: 2 }}>{preset.label}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>~{preset.weeklyLossKg}kg/wk</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 4 }}>{presetTarget.toLocaleString()}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              onClick={() => {
-                void handleSaveProfile();
-              }}
-              loading={updateProfileMutation.isPending}
-            >
-              Save Profile
-            </Button>
-
-            <Button variant="secondary" onClick={() => void signOut()}>
-              Sign Out
-            </Button>
-
-            {profileMessage ? <span className="text-sm text-danger">{profileMessage}</span> : null}
+            {/* Custom target input */}
+            <div>
+              <label className="field-label" style={{ color: 'rgba(255,255,255,0.6)' }}>Custom Target</label>
+              <div style={{ position: 'relative', marginTop: 6 }}>
+                <input
+                  className="input"
+                  type="number"
+                  min={500}
+                  max={10000}
+                  value={profile.calorieTarget}
+                  onChange={(event) => {
+                    setField('calorieTarget', event.target.value);
+                    setSelectedPreset(null);
+                  }}
+                  placeholder="e.g. 1800"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    color: '#fff',
+                    paddingRight: 72
+                  }}
+                />
+                <span style={{
+                  position: 'absolute', right: 12, top: 0, bottom: 0,
+                  display: 'flex', alignItems: 'center',
+                  fontSize: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none'
+                }}>kcal/day</span>
+              </div>
+            </div>
           </div>
         </div>
-      </Card>
 
-      <Card title="Data Export">
-        <p className="text-sm text-slate-600">Download your logs as a ZIP archive.</p>
-        <div className="mt-4 flex items-center gap-3">
-          <Button
-            type="button"
-            onClick={() => {
-              void handleExport();
-            }}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <span className="inline-flex items-center gap-2">
-                <Spinner size="sm" className="text-white" />
-                Exporting...
-              </span>
-            ) : (
-              'Export All Data'
-            )}
-          </Button>
-          {exportMessage ? <span className="text-sm text-slate-600">{exportMessage}</span> : null}
-        </div>
-      </Card>
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      <Card title="Data Import">
-        <div className="space-y-4">
-          {importStep === 'upload' ? (
-            <div className="space-y-3">
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setIsDraggingFile(true);
-                }}
-                onDragLeave={() => {
-                  setIsDraggingFile(false);
-                }}
-                onDrop={handleDrop}
-                className={`rounded-2xl border-2 border-dashed p-6 text-center ${isDraggingFile ? 'border-accent-500 bg-accent-50' : 'border-slate-300 bg-slate-50'}`}
-              >
-                <p className="text-sm text-slate-700">Drag and drop a CSV file here</p>
-                <p className="mt-1 text-xs text-slate-500">Only .csv files are supported</p>
+          {/* Data Import/Export card */}
+          <div className="card">
+            <h2 className="title" style={{ marginBottom: 16 }}>Data</h2>
 
-                <div className="mt-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    title="Select CSV file"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        void handleFileSelected(file);
-                      }
+            {/* Export */}
+            <div style={{ marginBottom: 20 }}>
+              <div className="overline" style={{ marginBottom: 10 }}>Export</div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>Download all your logs as a ZIP archive.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => { void handleExport(); }}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Spinner size="sm" />
+                      Exporting...
+                    </span>
+                  ) : '↓ Export All Data'}
+                </Button>
+                {exportMessage ? <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{exportMessage}</span> : null}
+              </div>
+            </div>
+
+            {/* Nutrition Import */}
+            <div style={{ paddingTop: 16, borderTop: '1px solid var(--surface-container-low)', marginBottom: 20 }}>
+              <div className="overline" style={{ marginBottom: 10 }}>Import Nutrition Logs</div>
+
+              {importStep === 'upload' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div
+                    onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true); }}
+                    onDragLeave={() => { setIsDraggingFile(false); }}
+                    onDrop={handleDrop}
+                    style={{
+                      borderRadius: 'var(--radius-lg)',
+                      border: `2px dashed ${isDraggingFile ? 'var(--primary)' : 'var(--surface-container-low)'}`,
+                      background: isDraggingFile ? 'var(--primary-dim)' : 'var(--surface-container)',
+                      padding: '20px 16px',
+                      textAlign: 'center',
+                      transition: 'border-color var(--transition), background var(--transition)'
                     }}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                    disabled={isImporting}
                   >
-                    Browse files
-                  </Button>
-                </div>
-              </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>Drag &amp; drop CSV here</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>or</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      title="Select CSV file"
+                      style={{ display: 'none' }}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) { void handleFileSelected(file); }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ marginTop: 8, fontSize: 13 }}
+                      onClick={() => { fileInputRef.current?.click(); }}
+                      disabled={isImporting}
+                    >
+                      Browse files
+                    </button>
+                  </div>
 
-              {isImporting ? (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Spinner size="sm" />
-                  <span>Uploading and analyzing CSV...</span>
+                  {isImporting ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+                      <Spinner size="sm" />
+                      Analyzing CSV...
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => { void handleDownloadImportTemplate(); }}
+                    disabled={isTemplateDownloading}
+                    style={{ fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+                  >
+                    Download import template
+                  </button>
                 </div>
               ) : null}
 
-              <button
-                type="button"
-                onClick={() => {
-                  void handleDownloadImportTemplate();
-                }}
-                disabled={isTemplateDownloading}
-                className="text-sm text-slate-600 underline hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Download import template
-              </button>
-            </div>
-          ) : null}
-
-          {importStep === 'formatWarning' ? (
-            <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-lg" aria-hidden="true">⚠</span>
-                <div>
-                  <h4 className="text-base font-semibold text-amber-900">Unrecognised File Format</h4>
-                  <p className="mt-1 text-sm text-amber-800">
-                    We couldn't recognise the columns in your file. It may be missing required columns or using different column names than expected.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-amber-200 bg-white p-3">
-                <h5 className="text-sm font-semibold text-slate-900">Required columns check</h5>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {requiredColumnStatus.map((column) => (
-                    <li
-                      key={column.name}
-                      className={column.detected ? 'text-green-700' : 'text-red-700'}
-                    >
-                      <span className="mr-2" aria-hidden="true">
-                        {column.detected ? '✓' : '✕'}
-                      </span>
-                      {column.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    void handleDownloadImportTemplate();
-                  }}
-                  disabled={isTemplateDownloading}
-                >
-                  Download Template
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setImportStep('mapping');
-                  }}
-                >
-                  Continue Anyway — Map Columns Manually
-                </Button>
-
-                <button
-                  type="button"
-                  className="text-sm text-slate-700 underline hover:text-slate-900"
-                  onClick={resetImportFlow}
-                >
-                  Upload a Different File
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {importStep === 'mapping' && importPreview ? (
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold text-slate-900">Step 2: Column Mapping</h4>
-                <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-left text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">CSV Column</th>
-                        <th className="px-3 py-2 font-medium">Map To</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {detectedColumns.map((columnName) => (
-                        <tr key={columnName}>
-                          <td className="px-3 py-2 text-slate-800">{columnName}</td>
-                          <td className="px-3 py-2">
-                            <Select
-                              label={`Map ${columnName}`}
-                              options={APP_FIELD_OPTIONS}
-                              value={columnMapping[columnName] ?? '__ignore__'}
-                              onChange={(event) => {
-                                const nextValue = event.target.value;
-                                setColumnMapping((current) => ({
-                                  ...current,
-                                  [columnName]: nextValue
-                                }));
-                              }}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-slate-900">Preview (first 5 rows)</h4>
-                <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-left text-slate-600">
-                      <tr>
-                        {detectedColumns.map((columnName) => (
-                          <th key={columnName} className="px-3 py-2 font-medium">
-                            {columnName}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {previewRows.map((row, index) => (
-                        <tr key={index}>
-                          {detectedColumns.map((columnName) => (
-                            <td key={columnName} className="px-3 py-2 text-slate-700">
-                              {row[columnName] ?? ''}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    void handleConfirmMapping();
-                  }}
-                  loading={isImporting}
-                >
-                  Confirm Mapping
-                </Button>
-                <Button type="button" variant="secondary" onClick={resetImportFlow}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {importStep === 'conflicts' ? (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-slate-900">Step 3: Conflict Resolution</h4>
-              <p className="text-sm text-slate-600">Conflicting dates were found. Choose how to proceed.</p>
-
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-slate-600">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">CSV Row</th>
-                      <th className="px-3 py-2 font-medium">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {uniqueConflictRows.map((conflict) => (
-                      <tr key={`${conflict.row}-${conflict.date}`}>
-                        <td className="px-3 py-2">{conflict.row}</td>
-                        <td className="px-3 py-2">{conflict.date}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    void handleResolveConflicts('skip');
-                  }}
-                  loading={isImporting}
-                >
-                  Skip All Conflicts
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    void handleResolveConflicts('overwrite');
-                  }}
-                  loading={isImporting}
-                >
-                  Overwrite All
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {importStep === 'result' && importResult ? (
-            <div className="space-y-3">
-              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-green-800">
-                Successfully imported {importResult.imported} rows. Skipped {importResult.skipped} rows.
-              </div>
-              <Button type="button" variant="secondary" onClick={resetImportFlow}>
-                Import Another File
-              </Button>
-            </div>
-          ) : null}
-
-          {importMessage ? <p className="text-sm text-danger">{importMessage}</p> : null}
-
-          <div className="border-t border-slate-200 pt-5">
-            <h3 className="text-base font-semibold text-slate-900">Import Habits</h3>
-
-            {habitImportStep === 'upload' ? (
-              <div className="mt-3 space-y-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      setIsDraggingDefinitionsFile(true);
-                    }}
-                    onDragLeave={() => {
-                      setIsDraggingDefinitionsFile(false);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setIsDraggingDefinitionsFile(false);
-                      const file = event.dataTransfer.files?.[0];
-                      if (file) {
-                        handleHabitFileSelected('definitions', file);
-                      }
-                    }}
-                    className={`rounded-2xl border-2 border-dashed p-5 text-center ${
-                      isDraggingDefinitionsFile
-                        ? 'border-accent-500 bg-accent-50'
-                        : 'border-slate-300 bg-slate-50'
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-slate-800">Habit Definitions (habit_definitions.csv)</p>
-                    <p className="mt-1 text-xs text-slate-500">Optional</p>
-                    <input
-                      ref={habitDefinitionsInputRef}
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          handleHabitFileSelected('definitions', file);
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="mt-3"
-                      onClick={() => {
-                        habitDefinitionsInputRef.current?.click();
-                      }}
-                    >
-                      Choose file
-                    </Button>
-                    {habitDefinitionsFile ? (
-                      <p className="mt-2 text-xs text-slate-600">{habitDefinitionsFile.name}</p>
-                    ) : null}
-                  </div>
-
-                  <div
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      setIsDraggingHabitLogsFile(true);
-                    }}
-                    onDragLeave={() => {
-                      setIsDraggingHabitLogsFile(false);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setIsDraggingHabitLogsFile(false);
-                      const file = event.dataTransfer.files?.[0];
-                      if (file) {
-                        handleHabitFileSelected('logs', file);
-                      }
-                    }}
-                    className={`rounded-2xl border-2 border-dashed p-5 text-center ${
-                      isDraggingHabitLogsFile
-                        ? 'border-accent-500 bg-accent-50'
-                        : 'border-slate-300 bg-slate-50'
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-slate-800">Habit Logs (habit_logs.csv)</p>
-                    <p className="mt-1 text-xs text-slate-500">Optional</p>
-                    <input
-                      ref={habitLogsInputRef}
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          handleHabitFileSelected('logs', file);
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="mt-3"
-                      onClick={() => {
-                        habitLogsInputRef.current?.click();
-                      }}
-                    >
-                      Choose file
-                    </Button>
-                    {habitLogsFile ? (
-                      <p className="mt-2 text-xs text-slate-600">{habitLogsFile.name}</p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      void handlePreviewHabitImport();
-                    }}
-                    loading={isHabitImportLoading}
-                    disabled={!habitDefinitionsFile && !habitLogsFile}
-                  >
-                    Preview Import
-                  </Button>
-
-                  {habitImportMessage ? <span className="text-sm text-danger">{habitImportMessage}</span> : null}
-                </div>
-              </div>
-            ) : null}
-
-            {habitImportStep === 'conflicts' ? (
-              <div className="mt-3 space-y-4">
-                {habitDefinitionsPreview?.conflicts?.length ? (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-semibold text-slate-900">Step 2: Conflict resolution</h4>
-                    <div className="overflow-x-auto rounded-xl border border-slate-200">
-                      <table className="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead className="bg-slate-50 text-left text-slate-600">
-                          <tr>
-                            <th className="px-3 py-2 font-medium">Habit Name</th>
-                            <th className="px-3 py-2 font-medium">Existing</th>
-                            <th className="px-3 py-2 font-medium">Incoming</th>
-                            <th className="px-3 py-2 font-medium">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                          {habitDefinitionsPreview.conflicts.map((conflict) => (
-                            <tr key={conflict.habitName}>
-                              <td className="px-3 py-2 font-medium text-slate-900">{conflict.habitName}</td>
-                              <td className="px-3 py-2 text-sm text-gray-500">
-                                <p>{conflict.existingHabit.habitType}</p>
-                                <p>{conflict.existingHabit.frequencyType}</p>
-                              </td>
-                              <td className="px-3 py-2 text-sm text-gray-500">
-                                <p>{conflict.incomingHabit.habitType}</p>
-                                <p>{conflict.incomingHabit.frequencyType}</p>
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="space-y-2">
-                                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                                    <input
-                                      type="radio"
-                                      name={`resolution-${conflict.habitName}`}
-                                      checked={(habitConflictResolutions[conflict.habitName] ?? 'link') === 'link'}
-                                      onChange={() => handleConflictResolutionChange(conflict.habitName, 'link')}
-                                    />
-                                    Keep existing
-                                  </label>
-                                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                                    <input
-                                      type="radio"
-                                      name={`resolution-${conflict.habitName}`}
-                                      checked={habitConflictResolutions[conflict.habitName] === 'create_new'}
-                                      onChange={() => handleConflictResolutionChange(conflict.habitName, 'create_new')}
-                                    />
-                                    Create new copy
-                                  </label>
-                                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                                    <input
-                                      type="radio"
-                                      name={`resolution-${conflict.habitName}`}
-                                      checked={habitConflictResolutions[conflict.habitName] === 'overwrite'}
-                                      onChange={() => handleConflictResolutionChange(conflict.habitName, 'overwrite')}
-                                    />
-                                    Update definition
-                                  </label>
-                                  <p className="text-xs text-slate-500">Tuned fields (target, calorie rates) are preserved</p>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+              {importStep === 'formatWarning' ? (
+                <div style={{
+                  background: 'var(--warning-bg)', border: '1px solid var(--warning)',
+                  borderRadius: 'var(--radius-lg)', padding: 14
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                    <span>⚠</span>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning-text)', marginBottom: 4 }}>Unrecognised Format</p>
+                      <p style={{ fontSize: 12, color: 'var(--warning-text)' }}>Missing or misnamed columns.</p>
                     </div>
                   </div>
-                ) : null}
-
-                {habitDefinitionsPreview?.newHabits?.length ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                    {habitDefinitionsPreview.newHabits.length} new habits will be created: {habitDefinitionsPreview.newHabits.join(', ')}
+                  <ul style={{ fontSize: 12, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {requiredColumnStatus.map((col) => (
+                      <li key={col.name} style={{ color: col.detected ? 'var(--success-text)' : 'var(--danger-text)' }}>
+                        {col.detected ? '✓' : '✕'} {col.name}
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => { void handleDownloadImportTemplate(); }} disabled={isTemplateDownloading}>Download Template</button>
+                    <button type="button" className="btn-secondary" style={{ fontSize: 12 }} onClick={() => { setImportStep('mapping'); }}>Map Manually</button>
+                    <button type="button" style={{ fontSize: 12, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', textDecoration: 'underline' }} onClick={resetImportFlow}>Try Different File</button>
                   </div>
-                ) : null}
+                </div>
+              ) : null}
 
-                {unresolvedHabitNames.length > 0 && !habitDefinitionsFile ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    These habit names in your logs file were not found: {unresolvedHabitNames.join(', ')}. Their logs will be skipped. Upload a habit_definitions.csv to create them.
+              {importStep === 'mapping' && importPreview ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p className="overline" style={{ marginBottom: 0 }}>Step 2: Column Mapping</p>
+                  <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-container-low)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--surface-container-low)' }}>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>CSV Column</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Maps To</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detectedColumns.map((columnName) => (
+                          <tr key={columnName} style={{ borderTop: '1px solid var(--surface-container-low)' }}>
+                            <td style={{ padding: '8px 12px', color: 'var(--text-primary)' }}>{columnName}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <Select
+                                label={`Map ${columnName}`}
+                                options={APP_FIELD_OPTIONS}
+                                value={columnMapping[columnName] ?? '__ignore__'}
+                                onChange={(event) => {
+                                  const nextValue = event.target.value;
+                                  setColumnMapping((current) => ({ ...current, [columnName]: nextValue }));
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ) : null}
-
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      void handleConfirmHabitImport();
-                    }}
-                    loading={isHabitImportLoading}
-                  >
-                    Confirm Import
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={resetHabitImportFlow}>
-                    Cancel
-                  </Button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button type="button" onClick={() => { void handleConfirmMapping(); }} loading={isImporting}>Confirm Mapping</Button>
+                    <Button type="button" variant="secondary" onClick={resetImportFlow}>Cancel</Button>
+                  </div>
                 </div>
+              ) : null}
 
-                {habitImportMessage ? <p className="text-sm text-danger">{habitImportMessage}</p> : null}
-              </div>
-            ) : null}
-
-            {habitImportStep === 'result' && habitImportResult ? (
-              <div className="mt-3 space-y-3">
-                <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-green-800">
-                  <p className="font-semibold">✓ Import complete</p>
-                  <p>{habitImportResult.habitsCreated} habits created</p>
-                  <p>{habitImportResult.habitsUpdated} habits updated</p>
-                  <p>{habitImportResult.habitsLinked} habits linked to existing</p>
-                  <p>{habitImportResult.logsImported} habit logs imported</p>
-                  <p>{habitImportResult.logsSkipped} habit logs skipped</p>
+              {importStep === 'conflicts' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p className="overline" style={{ marginBottom: 0 }}>Step 3: Conflict Resolution</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Conflicting dates found. Choose how to proceed.</p>
+                  <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-container-low)', maxHeight: 200, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--surface-container-low)' }}>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Row</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uniqueConflictRows.map((conflict) => (
+                          <tr key={`${conflict.row}-${conflict.date}`} style={{ borderTop: '1px solid var(--surface-container-low)' }}>
+                            <td style={{ padding: '8px 12px', color: 'var(--text-primary)' }}>{conflict.row}</td>
+                            <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{conflict.date}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <Button type="button" variant="secondary" onClick={() => { void handleResolveConflicts('skip'); }} loading={isImporting}>Skip Conflicts</Button>
+                    <Button type="button" onClick={() => { void handleResolveConflicts('overwrite'); }} loading={isImporting}>Overwrite All</Button>
+                  </div>
                 </div>
+              ) : null}
 
-                <Button type="button" variant="secondary" onClick={resetHabitImportFlow}>
-                  Import Another File
-                </Button>
+              {importStep === 'result' && importResult ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{
+                    background: 'var(--success-bg)', border: '1px solid var(--success)',
+                    borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                    color: 'var(--success-text)'
+                  }}>
+                    ✓ Imported {importResult.imported} rows. Skipped {importResult.skipped} rows.
+                  </div>
+                  <Button type="button" variant="secondary" onClick={resetImportFlow}>Import Another File</Button>
+                </div>
+              ) : null}
+
+              {importMessage ? <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{importMessage}</p> : null}
+            </div>
+
+            {/* Habits Import */}
+            <div style={{ paddingTop: 16, borderTop: '1px solid var(--surface-container-low)' }}>
+              <div className="overline" style={{ marginBottom: 10 }}>Import Habits</div>
+
+              {habitImportStep === 'upload' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {/* Definitions drop zone */}
+                    <div
+                      onDragOver={(event) => { event.preventDefault(); setIsDraggingDefinitionsFile(true); }}
+                      onDragLeave={() => { setIsDraggingDefinitionsFile(false); }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setIsDraggingDefinitionsFile(false);
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) { handleHabitFileSelected('definitions', file); }
+                      }}
+                      style={{
+                        borderRadius: 'var(--radius-lg)',
+                        border: `2px dashed ${isDraggingDefinitionsFile ? 'var(--primary)' : 'var(--surface-container-low)'}`,
+                        background: isDraggingDefinitionsFile ? 'var(--primary-dim)' : 'var(--surface-container)',
+                        padding: '16px 10px', textAlign: 'center',
+                        transition: 'border-color var(--transition), background var(--transition)'
+                      }}
+                    >
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Definitions</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>habit_definitions.csv</p>
+                      <input
+                        ref={habitDefinitionsInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        style={{ display: 'none' }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) { handleHabitFileSelected('definitions', file); }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => { habitDefinitionsInputRef.current?.click(); }}
+                      >
+                        Choose
+                      </button>
+                      {habitDefinitionsFile ? (
+                        <p style={{ fontSize: 11, color: 'var(--success-text)', marginTop: 6 }}>✓ {habitDefinitionsFile.name}</p>
+                      ) : null}
+                    </div>
+
+                    {/* Logs drop zone */}
+                    <div
+                      onDragOver={(event) => { event.preventDefault(); setIsDraggingHabitLogsFile(true); }}
+                      onDragLeave={() => { setIsDraggingHabitLogsFile(false); }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setIsDraggingHabitLogsFile(false);
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) { handleHabitFileSelected('logs', file); }
+                      }}
+                      style={{
+                        borderRadius: 'var(--radius-lg)',
+                        border: `2px dashed ${isDraggingHabitLogsFile ? 'var(--primary)' : 'var(--surface-container-low)'}`,
+                        background: isDraggingHabitLogsFile ? 'var(--primary-dim)' : 'var(--surface-container)',
+                        padding: '16px 10px', textAlign: 'center',
+                        transition: 'border-color var(--transition), background var(--transition)'
+                      }}
+                    >
+                      <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Habit Logs</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8 }}>habit_logs.csv</p>
+                      <input
+                        ref={habitLogsInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        style={{ display: 'none' }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) { handleHabitFileSelected('logs', file); }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => { habitLogsInputRef.current?.click(); }}
+                      >
+                        Choose
+                      </button>
+                      {habitLogsFile ? (
+                        <p style={{ fontSize: 11, color: 'var(--success-text)', marginTop: 6 }}>✓ {habitLogsFile.name}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      type="button"
+                      onClick={() => { void handlePreviewHabitImport(); }}
+                      loading={isHabitImportLoading}
+                      disabled={!habitDefinitionsFile && !habitLogsFile}
+                    >
+                      Preview Import
+                    </Button>
+                    {habitImportMessage ? <span style={{ fontSize: 12, color: 'var(--danger)' }}>{habitImportMessage}</span> : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {habitImportStep === 'conflicts' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {habitDefinitionsPreview?.conflicts?.length ? (
+                    <div>
+                      <p className="overline" style={{ marginBottom: 8 }}>Step 2: Conflict Resolution</p>
+                      <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--surface-container-low)', maxHeight: 240, overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ background: 'var(--surface-container-low)' }}>
+                              <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Habit</th>
+                              <th style={{ padding: '8px 10px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {habitDefinitionsPreview.conflicts.map((conflict) => (
+                              <tr key={conflict.habitName} style={{ borderTop: '1px solid var(--surface-container-low)' }}>
+                                <td style={{ padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600 }}>{conflict.habitName}</td>
+                                <td style={{ padding: '8px 10px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {(['link', 'create_new', 'overwrite'] as ConflictResolution[]).map((res) => (
+                                      <label key={res} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                        <input
+                                          type="radio"
+                                          name={`resolution-${conflict.habitName}`}
+                                          checked={(habitConflictResolutions[conflict.habitName] ?? 'link') === res}
+                                          onChange={() => handleConflictResolutionChange(conflict.habitName, res)}
+                                        />
+                                        {res === 'link' ? 'Keep existing' : res === 'create_new' ? 'Create copy' : 'Update definition'}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {habitDefinitionsPreview?.newHabits?.length ? (
+                    <div style={{
+                      background: 'var(--surface-container)', borderRadius: 'var(--radius-md)',
+                      padding: '10px 12px', fontSize: 12, color: 'var(--text-secondary)'
+                    }}>
+                      {habitDefinitionsPreview.newHabits.length} new habits: {habitDefinitionsPreview.newHabits.join(', ')}
+                    </div>
+                  ) : null}
+
+                  {unresolvedHabitNames.length > 0 && !habitDefinitionsFile ? (
+                    <div style={{
+                      background: 'var(--warning-bg)', border: '1px solid var(--warning)',
+                      borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: 12, color: 'var(--warning-text)'
+                    }}>
+                      ⚠ Unresolved: {unresolvedHabitNames.join(', ')}. Upload definitions CSV to create them.
+                    </div>
+                  ) : null}
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button type="button" onClick={() => { void handleConfirmHabitImport(); }} loading={isHabitImportLoading}>Confirm Import</Button>
+                    <Button type="button" variant="secondary" onClick={resetHabitImportFlow}>Cancel</Button>
+                  </div>
+                  {habitImportMessage ? <p style={{ fontSize: 12, color: 'var(--danger)' }}>{habitImportMessage}</p> : null}
+                </div>
+              ) : null}
+
+              {habitImportStep === 'result' && habitImportResult ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{
+                    background: 'var(--success-bg)', border: '1px solid var(--success)',
+                    borderRadius: 'var(--radius-md)', padding: '12px 14px', fontSize: 13,
+                    color: 'var(--success-text)', display: 'flex', flexDirection: 'column', gap: 2
+                  }}>
+                    <p style={{ fontWeight: 700 }}>✓ Import complete</p>
+                    <p>{habitImportResult.habitsCreated} habits created</p>
+                    <p>{habitImportResult.habitsUpdated} habits updated</p>
+                    <p>{habitImportResult.habitsLinked} habits linked</p>
+                    <p>{habitImportResult.logsImported} logs imported</p>
+                    <p>{habitImportResult.logsSkipped} logs skipped</p>
+                  </div>
+                  <Button type="button" variant="secondary" onClick={resetHabitImportFlow}>Import Another File</Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Account card */}
+          <div className="card">
+            <h2 className="title" style={{ marginBottom: 16 }}>Account</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label className="field-label">Email</label>
+                <div style={{
+                  padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface-container)', fontSize: 14,
+                  color: 'var(--text-secondary)', marginTop: 6
+                }}>
+                  {user?.email ?? '—'}
+                </div>
               </div>
-            ) : null}
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--danger)',
+                  background: 'transparent',
+                  color: 'var(--danger)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'background var(--transition)',
+                  textAlign: 'center'
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--danger-bg)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
-      </Card>
-    </section>
+      </div>
+    </div>
   );
 };
 

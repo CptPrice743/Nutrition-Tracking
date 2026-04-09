@@ -1,6 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import Card from '../ui/Card';
 import Skeleton from '../ui/Skeleton';
 
 export type MacroDonutProps = {
@@ -10,81 +9,63 @@ export type MacroDonutProps = {
   isLoading?: boolean;
 };
 
-type DonutPoint = {
-  name: 'Protein' | 'Carbs' | 'Fat';
-  value: number;
-  color: string;
-  legendClassName: string;
-};
-
 const MacroDonut = ({ protein, carbs, fat, isLoading = false }: MacroDonutProps): JSX.Element => {
   if (isLoading) {
     return (
-      <Card title="Macro Donut">
+      <div className="card">
+        <Skeleton className="h-6 w-32 mb-3" />
         <Skeleton className="h-40 w-full" />
-      </Card>
+      </div>
     );
   }
 
-  const data: DonutPoint[] = [
-    {
-      name: 'Protein',
-      value: Math.max(0, Number(protein ?? 0)),
-      color: '#3b82f6',
-      legendClassName: 'bg-blue-500'
-    },
-    {
-      name: 'Carbs',
-      value: Math.max(0, Number(carbs ?? 0)),
-      color: '#f59e0b',
-      legendClassName: 'bg-amber-500'
-    },
-    {
-      name: 'Fat',
-      value: Math.max(0, Number(fat ?? 0)),
-      color: '#ef4444',
-      legendClassName: 'bg-red-500'
-    }
+  const data = [
+    { name: 'Protein', value: Math.max(0, Number(protein ?? 0)), color: '#2563eb' },
+    { name: 'Carbs', value: Math.max(0, Number(carbs ?? 0)), color: '#f59e0b' },
+    { name: 'Fat', value: Math.max(0, Number(fat ?? 0)), color: '#ef4444' }
   ];
 
-  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const total = data.reduce((s, d) => s + d.value, 0);
 
   return (
-    <Card title="Macro Donut">
+    <div className="card">
+      <span className="title" style={{ display: 'block', marginBottom: 16 }}>Macro Split</span>
+
       {total === 0 ? (
-        <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-          No macro data for today.
+        <div style={{ height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>No macro data for today</p>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={2}>
-                {data.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => [`${Number(value).toFixed(0)} g`, '']} />
-            </PieChart>
-          </ResponsiveContainer>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ height: 160 }}>
+            <ResponsiveContainer width={160} height={160}>
+              <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={2}>
+                  {data.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => [`${value.toFixed(0)} g`, '']} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
 
-          <div className="space-y-2 text-sm text-slate-700">
-            {data.map((entry) => {
-              const pct = total === 0 ? 0 : (entry.value / total) * 100;
+          <div style={{ display: 'flex', gap: 16 }}>
+            {data.map((d) => {
+              const pct = total === 0 ? 0 : (d.value / total) * 100;
               return (
-                <div key={entry.name} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${entry.legendClassName}`} />
-                    <span>{entry.name}</span>
-                  </div>
-                  <span className="font-medium">{pct.toFixed(0)}%</span>
+                <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>{d.name}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{d.value.toFixed(0)}g</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>({pct.toFixed(0)}%)</span>
                 </div>
               );
             })}
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 };
 
